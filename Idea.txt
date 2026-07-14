@@ -1,0 +1,1 @@
+now i want to add the features that a staff can report to the HR Manager if the HR manager does not exist  or in the inactive form then that report will automatically submitted to admin and a HR Manager can submit report to the admin and an admin can submit the report to the super admin 
