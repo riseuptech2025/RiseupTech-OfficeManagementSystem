@@ -87,6 +87,7 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onLogout }) => {
     { id: 'tasks', label: 'Tasks', icon: FaTasks, path: '/tasks' },
     { id: 'activity', label: 'Activity', icon: FaHistory, path: '/activity' },
      { id: 'account', label: 'Account', icon: FaReceipt, path: '/account' },
+     { id: 'customers', label: 'Customers', icon: FaUsers, path: '/customers' }, 
     { id: 'management', label: 'Management', icon: FaCog, path: '/management' },
   ];
 

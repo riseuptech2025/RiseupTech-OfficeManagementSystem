@@ -14,6 +14,7 @@ import ManagementPage from './pages/ManagementPage';
 import NotificationPage from './pages/NotificationPage';
 import AccountPage from './pages/Account/AccountPage';
 import { authService } from './services/api';
+import CustomerPage from './pages/Customers/CustomerPage';
 
 const ProtectedRoute = ({ children }) => {
   if (!authService.isAuthenticated()) {
@@ -105,6 +106,14 @@ function App() {
   element={
     <ProtectedRoute>
       <NotificationPage />
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/customers"
+  element={
+    <ProtectedRoute>
+      <CustomerPage />
     </ProtectedRoute>
   }
 />

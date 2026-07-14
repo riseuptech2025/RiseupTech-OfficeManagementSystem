@@ -1,41 +1,47 @@
 // components/GenerateReceiptModal.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaTimes, FaSpinner, FaReceipt, FaTrash, FaPlus, FaMoneyBillWave, FaFileInvoice } from 'react-icons/fa';
+import { 
+  FaTimes, 
+  FaSpinner, 
+  FaReceipt, 
+  FaTrash, 
+  FaPlus, 
+  FaMoneyBillWave, 
+  FaFileInvoice, 
+  FaUser, 
+  FaPhone, 
+  FaEnvelope, 
+  FaMapMarkerAlt, 
+  FaBuilding, 
+  FaSearch 
+} from 'react-icons/fa';
 import { receiptService } from '../services/receiptService';
+import { customerService } from '../services/customerService';
 import logo from '../assets/logo.png';
 
-// ============================================
-// DEFAULT REMARKS - Fixed template
-// ============================================
 const DEFAULT_REMARKS = 'Thank you for choosing Riseup-Tech Software Company. We appreciate your business and look forward to serving you again.';
+
+// Payment methods that require transaction ID
+const ONLINE_METHODS = ['eSewa', 'Khalti', 'Bank Transfer', 'FonePay', 'Credit/Debit Card'];
 
 const GenerateReceiptModal = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
-    // Customer Information
+    customerId: '',
     customerName: '',
     customerPhone: '',
     customerEmail: '',
     customerAddress: '',
-    
-    // Services
+    saveCustomer: true,
     services: [{ serviceName: '', description: '', quantity: 1, unitPrice: 0 }],
-    
-    // Billing
     discount: 0,
     vatRate: 13,
-    
-    // Payment
     paymentMethod: 'Cash',
     transactionId: '',
+    bankName: '',
+    paidAmount: '',
     paymentStatus: 'Pending',
-    
-    // ============================================
-    // FIX: Default remarks pre-filled
-    // ============================================
     remarks: DEFAULT_REMARKS,
-    
-    // Signatures
     customerSignature: '',
     authorizedSignature: '',
     companyStamp: ''
@@ -43,12 +49,15 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [customerSearchResult, setCustomerSearchResult] = useState(null);
+  const [searchTimeout, setSearchTimeout] = useState(null);
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) || 0 : value)
     });
   };
 
@@ -72,6 +81,79 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
     }
   };
 
+  // ============================================
+  // Search customer by phone
+  // ============================================
+  const searchCustomer = async () => {
+    if (!formData.customerPhone || formData.customerPhone.length < 10) {
+      setError('Please enter a valid phone number to search');
+      return;
+    }
+
+    setSearchingCustomer(true);
+    setError('');
+    setCustomerSearchResult(null);
+
+    try {
+      const response = await customerService.searchCustomer(formData.customerPhone);
+      if (response.data) {
+        setCustomerSearchResult(response.data);
+        setFormData(prev => ({
+          ...prev,
+          customerId: response.data._id,
+          customerName: response.data.name || prev.customerName,
+          customerEmail: response.data.email || prev.customerEmail,
+          customerAddress: response.data.address || prev.customerAddress,
+        }));
+      } else {
+        setCustomerSearchResult(null);
+        setFormData(prev => ({
+          ...prev,
+          customerId: '',
+        }));
+      }
+    } catch (error) {
+      console.error('Search customer error:', error);
+      if (error.response?.status === 404) {
+        setCustomerSearchResult(null);
+        setFormData(prev => ({
+          ...prev,
+          customerId: '',
+        }));
+      } else {
+        setError('Failed to search customer. Please try again.');
+      }
+    } finally {
+      setSearchingCustomer(false);
+    }
+  };
+
+  // ============================================
+  // Auto-search when phone changes (debounced)
+  // ============================================
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      if (formData.customerPhone && formData.customerPhone.length >= 10) {
+        searchCustomer();
+      }
+    }, 500);
+
+    setSearchTimeout(timeout);
+
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [formData.customerPhone]);
+
+  // ============================================
+  // Calculate totals
+  // ============================================
   const calculateSubtotal = () => {
     return formData.services.reduce((sum, service) => {
       return sum + (service.quantity * service.unitPrice);
@@ -89,18 +171,30 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
 
   const { subtotal, discountAmount, vatAmount, grandTotal } = calculateTotals();
 
+  // ============================================
+  // Check if payment method requires transaction ID
+  // ============================================
+  const requiresTransactionId = ONLINE_METHODS.includes(formData.paymentMethod);
+  const isBankTransfer = formData.paymentMethod === 'Bank Transfer';
+  const isCash = formData.paymentMethod === 'Cash';
+
+  // ============================================
+  // Submit handler with validation
+  // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
+      // Validate customer
       if (!formData.customerName || !formData.customerPhone) {
         setError('Please provide customer name and phone number');
         setLoading(false);
         return;
       }
 
+      // Validate services
       const hasEmptyService = formData.services.some(s => !s.serviceName || s.quantity <= 0 || s.unitPrice <= 0);
       if (hasEmptyService) {
         setError('Please fill in all service details correctly');
@@ -108,8 +202,30 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
         return;
       }
 
+      // Validate payment method
+      if (requiresTransactionId && !formData.transactionId) {
+        setError(`Transaction ID is required for ${formData.paymentMethod} payments`);
+        setLoading(false);
+        return;
+      }
+
+      if (isBankTransfer && !formData.bankName) {
+        setError('Bank name is required for Bank Transfer payments');
+        setLoading(false);
+        return;
+      }
+
+      // Validate paid amount
+      const paidAmount = parseFloat(formData.paidAmount) || 0;
+      if (paidAmount > grandTotal) {
+        setError(`Paid amount cannot exceed grand total (${grandTotal})`);
+        setLoading(false);
+        return;
+      }
+
       const receiptData = {
         ...formData,
+        paidAmount: paidAmount,
         services: formData.services.map(s => ({
           serviceName: s.serviceName,
           description: s.description,
@@ -161,10 +277,51 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Customer Information */}
           <div className="bg-[#0A0A0F]/50 rounded-xl p-4">
-            <h4 className="text-sm font-medium text-gray-400 mb-3">Customer Information</h4>
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-sm font-medium text-gray-400">Customer Information</h4>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="saveCustomer"
+                  checked={formData.saveCustomer}
+                  onChange={handleChange}
+                  className="w-4 h-4 accent-[#00D4FF]"
+                />
+                <label className="text-xs text-gray-400">Save Customer</label>
+              </div>
+            </div>
+
+            {/* Customer Search */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-400 mb-1">Phone Number *</label>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    name="customerPhone"
+                    value={formData.customerPhone}
+                    onChange={handleChange}
+                    required
+                    className="flex-1 px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
+                    placeholder="9827399860"
+                  />
+                  <button
+                    type="button"
+                    onClick={searchCustomer}
+                    disabled={searchingCustomer}
+                    className="px-3 py-2 bg-[#00D4FF]/10 text-[#00D4FF] rounded-lg hover:bg-[#00D4FF]/20 transition-all"
+                  >
+                    {searchingCustomer ? <FaSpinner className="animate-spin" /> : <FaSearch />}
+                  </button>
+                </div>
+                {customerSearchResult && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#0A0A0F] border border-[#00D4FF]/20 rounded-lg p-2 z-10">
+                    <p className="text-xs text-green-400">✓ Customer found: {customerSearchResult.name}</p>
+                  </div>
+                )}
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Customer Name *</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Full Name *</label>
                 <input
                   type="text"
                   name="customerName"
@@ -173,18 +330,6 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
                   required
                   className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
                   placeholder="John Doe"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Phone Number *</label>
-                <input
-                  type="tel"
-                  name="customerPhone"
-                  value={formData.customerPhone}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
-                  placeholder="9827399860"
                 />
               </div>
               <div>
@@ -199,7 +344,7 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Customer Address</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Address</label>
                 <input
                   type="text"
                   name="customerAddress"
@@ -336,10 +481,12 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
             </div>
           </div>
 
-          {/* Payment Information */}
+          {/* Payment Information with Partial Payment */}
           <div className="bg-[#0A0A0F]/50 rounded-xl p-4">
             <h4 className="text-sm font-medium text-gray-400 mb-3">Payment Information</h4>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Payment Method */}
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">Payment Method</label>
                 <select
@@ -356,49 +503,112 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
                   <option value="Credit/Debit Card">Credit/Debit Card</option>
                 </select>
               </div>
+
+              {/* Transaction ID */}
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Transaction ID</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Transaction ID {requiresTransactionId && <span className="text-red-400">*</span>}
+                </label>
                 <input
                   type="text"
                   name="transactionId"
                   value={formData.transactionId}
                   onChange={handleChange}
+                  required={requiresTransactionId}
+                  disabled={isCash}
+                  placeholder={isCash ? 'Not required for Cash' : 'TXN123456'}
+                  className={`w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent ${
+                    isCash ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                />
+                {isCash && (
+                  <p className="text-xs text-gray-500 mt-1">Transaction ID not required for Cash payments</p>
+                )}
+              </div>
+
+              {/* Bank Name */}
+              {isBankTransfer && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">Bank Name *</label>
+                  <input
+                    type="text"
+                    name="bankName"
+                    value={formData.bankName}
+                    onChange={handleChange}
+                    required={isBankTransfer}
+                    className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
+                    placeholder="Nepal Bank Limited"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Partial Payment Section */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-700/50 pt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Paid Amount (Optional)
+                  <span className="text-xs text-gray-500 ml-2">Leave empty for full payment</span>
+                </label>
+                <input
+                  type="number"
+                  name="paidAmount"
+                  value={formData.paidAmount}
+                  onChange={handleChange}
+                  min="0"
+                  max={grandTotal}
+                  step="0.01"
+                  placeholder={`Max: ${grandTotal.toFixed(2)}`}
                   className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
-                  placeholder="TXN123456"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">Payment Status</label>
-                <select
-                  name="paymentStatus"
-                  value={formData.paymentStatus}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
-                >
-                  <option value="Paid">Paid</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Partial">Partial</option>
-                  <option value="Refunded">Refunded</option>
-                </select>
+                <div className="px-4 py-2 bg-[#0A0A0F] border border-gray-700 rounded-lg">
+                  <span className={`font-medium ${
+                    parseFloat(formData.paidAmount) >= grandTotal ? 'text-green-400' :
+                    parseFloat(formData.paidAmount) > 0 ? 'text-yellow-400' : 'text-gray-400'
+                  }`}>
+                    {parseFloat(formData.paidAmount) >= grandTotal ? '✓ Paid' :
+                     parseFloat(formData.paidAmount) > 0 ? 'Partial Payment' : 'Pending'}
+                  </span>
+                  {parseFloat(formData.paidAmount) > 0 && parseFloat(formData.paidAmount) < grandTotal && (
+                    <span className="text-xs text-gray-400 ml-2">
+                      Due: Rs. {(grandTotal - parseFloat(formData.paidAmount)).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Summary */}
+            <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-gray-400">
+              <div className="bg-[#0A0A0F] p-2 rounded text-center">
+                <span className="block">Grand Total</span>
+                <span className="text-white font-medium">Rs. {grandTotal.toFixed(2)}</span>
+              </div>
+              <div className="bg-[#0A0A0F] p-2 rounded text-center">
+                <span className="block">Paid</span>
+                <span className="text-green-400 font-medium">Rs. {(parseFloat(formData.paidAmount) || 0).toFixed(2)}</span>
+              </div>
+              <div className="bg-[#0A0A0F] p-2 rounded text-center">
+                <span className="block">Due</span>
+                <span className="text-red-400 font-medium">Rs. {(grandTotal - (parseFloat(formData.paidAmount) || 0)).toFixed(2)}</span>
               </div>
             </div>
           </div>
 
-          {/* Additional Information - Remarks with default value */}
-          <div className="bg-[#0A0A0F]/50 rounded-xl p-4">
-            <h4 className="text-sm font-medium text-gray-400 mb-3">Additional Information</h4>
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Remarks</label>
-              <textarea
-                name="remarks"
-                value={formData.remarks}
-                onChange={handleChange}
-                rows="3"
-                className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
-                placeholder={DEFAULT_REMARKS}
-              />
-              <p className="text-xs text-gray-500 mt-1">Default remarks are pre-filled. Edit if needed.</p>
-            </div>
+          {/* Remarks */}
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Remarks</label>
+            <textarea
+              name="remarks"
+              value={formData.remarks}
+              onChange={handleChange}
+              rows="2"
+              className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
+              placeholder={DEFAULT_REMARKS}
+            />
           </div>
 
           <div className="flex space-x-3 pt-4">

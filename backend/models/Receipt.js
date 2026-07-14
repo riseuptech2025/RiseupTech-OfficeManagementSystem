@@ -25,14 +25,14 @@ const receiptSchema = new mongoose.Schema({
     type: String
   },
   
-  // Company details (fixed)
+  // Company details
   companyName: {
     type: String,
     default: 'Riseup-Tech Software Company'
   },
   companyLogo: {
     type: String,
-    default: '/logo.png' // Path to your logo
+    default: '/logo.png'
   },
   companyAddress: {
     type: String,
@@ -60,6 +60,10 @@ const receiptSchema = new mongoose.Schema({
   },
   
   // Customer Information
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer'
+  },
   recipientName: {
     type: String,
     required: true
@@ -131,7 +135,22 @@ const receiptSchema = new mongoose.Schema({
     type: String
   },
   
-  // Payment Information
+  // Payment Tracking
+  paidAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  dueAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['Paid', 'Partial', 'Pending', 'Refunded'],
+    default: 'Pending'
+  },
   paymentMethod: {
     type: String,
     enum: ['Cash', 'eSewa', 'Khalti', 'Bank Transfer', 'FonePay', 'Credit/Debit Card'],
@@ -140,14 +159,37 @@ const receiptSchema = new mongoose.Schema({
   paymentReference: {
     type: String
   },
-  paymentStatus: {
-    type: String,
-    enum: ['Paid', 'Pending', 'Partial', 'Refunded'],
-    default: 'Pending'
+  bankName: {
+    type: String
   },
   paymentDate: {
     type: Date
   },
+  
+  // Payment History
+  paymentHistory: [{
+    amount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    method: {
+      type: String,
+      enum: ['Cash', 'eSewa', 'Khalti', 'Bank Transfer', 'FonePay', 'Credit/Debit Card']
+    },
+    reference: String,
+    bankName: String,
+    date: {
+      type: Date,
+      default: Date.now
+    },
+    receivedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    receivedByName: String,
+    notes: String
+  }],
   
   // Additional Information
   remarks: {
@@ -246,7 +288,6 @@ const receiptSchema = new mongoose.Schema({
     details: String
   }],
   
-  // Terms
   termsAndConditions: {
     type: String,
     default: 'Thank you for choosing Riseup-Tech Software Company. We appreciate your business.'
@@ -256,12 +297,17 @@ const receiptSchema = new mongoose.Schema({
 });
 
 // ============================================
-// Indexes
+// NO PRE-SAVE MIDDLEWARE - Everything handled in controller
+// ============================================
+
+// ============================================
+// Indexes - Remove duplicates
 // ============================================
 receiptSchema.index({ receiptNumber: 1 }, { unique: true });
 receiptSchema.index({ invoiceNumber: 1 }, { unique: true, sparse: true });
 receiptSchema.index({ generatedBy: 1, createdAt: -1 });
 receiptSchema.index({ recipientEmail: 1, createdAt: -1 });
 receiptSchema.index({ status: 1, createdAt: -1 });
+receiptSchema.index({ customerId: 1 });
 
 module.exports = mongoose.model('Receipt', receiptSchema);

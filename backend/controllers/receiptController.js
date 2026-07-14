@@ -1,5 +1,6 @@
 // controllers/receiptController.js
 const Receipt = require('../models/Receipt');
+const Customer = require('../models/Customer');
 const User = require('../models/User');
 const notificationService = require('../services/notificationService');
 
@@ -60,16 +61,6 @@ const generateReceiptNumber = async () => {
   return `RCP-${year}${month}${day}-${sequence}`;
 };
 
-// Function to generate transaction ID for cash payments
-const generateTransactionId = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-  return `CASH-${year}${month}${day}-${random}`;
-};
-
 // Default remarks template
 const DEFAULT_REMARKS = 'Thank you for choosing Riseup-Tech Software Company. We appreciate your business and look forward to serving you again.';
 
@@ -79,6 +70,7 @@ const DEFAULT_REMARKS = 'Thank you for choosing Riseup-Tech Software Company. We
 const generateReceipt = async (req, res) => {
   try {
     const {
+      customerId,
       customerName,
       customerPhone,
       customerEmail,
@@ -88,11 +80,14 @@ const generateReceipt = async (req, res) => {
       vatRate,
       paymentMethod,
       transactionId,
-      paymentStatus,
+      bankName,
+      paidAmount,
+      paymentStatus: requestedPaymentStatus,
       remarks,
       customerSignature,
       authorizedSignature,
-      companyStamp
+      companyStamp,
+      saveCustomer
     } = req.body;
 
     console.log('Received receipt data:', req.body);
@@ -142,6 +137,42 @@ const generateReceipt = async (req, res) => {
     const vatAmount = taxableAmount * (vatRateValue / 100);
     const grandTotal = taxableAmount + vatAmount;
 
+    // Handle partial payment
+    const paidAmountValue = parseFloat(paidAmount) || 0;
+    const finalPaidAmount = Math.min(paidAmountValue, grandTotal);
+    const dueAmount = grandTotal - finalPaidAmount;
+
+    // Determine payment status
+    let paymentStatus = 'Pending';
+    if (finalPaidAmount >= grandTotal) {
+      paymentStatus = 'Paid';
+    } else if (finalPaidAmount > 0 && finalPaidAmount < grandTotal) {
+      paymentStatus = 'Partial';
+    }
+
+    // Determine receipt status
+    const isFullyPaid = finalPaidAmount >= grandTotal;
+    const finalStatus = isFullyPaid ? 'paid' : 'issued';
+    const isEditable = !isFullyPaid;
+
+    // Payment method validation
+    const onlineMethods = ['eSewa', 'Khalti', 'Bank Transfer', 'FonePay', 'Credit/Debit Card'];
+    const isOnlinePayment = onlineMethods.includes(paymentMethod);
+
+    if (isOnlinePayment && !transactionId) {
+      return res.status(400).json({
+        success: false,
+        message: `Transaction ID is required for ${paymentMethod} payments`
+      });
+    }
+
+    if (paymentMethod === 'Bank Transfer' && !bankName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bank name is required for Bank Transfer payments'
+      });
+    }
+
     // Generate receipt number
     const receiptNumber = await generateReceiptNumber();
 
@@ -165,23 +196,8 @@ const generateReceipt = async (req, res) => {
     // Amount in words
     const amountInWords = numberToWords(grandTotal);
 
-    // Auto-generate transaction ID for cash payments
-    let finalTransactionId = transactionId || '';
-    if (paymentMethod === 'Cash' && !finalTransactionId) {
-      finalTransactionId = generateTransactionId();
-    }
-
     // Use default remarks if not provided
     const finalRemarks = remarks || DEFAULT_REMARKS;
-
-    // ============================================
-    // FIX: Determine payment status correctly
-    // ============================================
-    const isPaid = paymentStatus === 'Paid';
-    const finalStatus = isPaid ? 'paid' : 'issued';
-    const isEditable = !isPaid;
-
-    console.log(`Payment Status: ${paymentStatus}, Final Status: ${finalStatus}, Is Paid: ${isPaid}`);
 
     // Company details
     const companyDetails = {
@@ -195,9 +211,39 @@ const generateReceipt = async (req, res) => {
       receiptTitle: 'PAYMENT RECEIPT'
     };
 
+    // Save or update customer
+    let customerIdField = customerId || null;
+    if (saveCustomer && customerPhone) {
+      let customer = await Customer.findOne({ phone: customerPhone });
+      if (customer) {
+        customer.name = customerName || customer.name;
+        customer.email = customerEmail || customer.email;
+        customer.address = customerAddress || customer.address;
+        customer.totalPurchases += 1;
+        customer.totalAmountSpent += grandTotal;
+        customer.lastPurchaseDate = new Date();
+        await customer.save();
+        customerIdField = customer._id;
+      } else {
+        const newCustomer = await Customer.create({
+          name: customerName,
+          phone: customerPhone,
+          email: customerEmail || '',
+          address: customerAddress || '',
+          totalPurchases: 1,
+          totalAmountSpent: grandTotal,
+          lastPurchaseDate: new Date(),
+          createdBy: req.user.id,
+          createdByName: req.user.name
+        });
+        customerIdField = newCustomer._id;
+      }
+    }
+
     // Create receipt data
     const receiptData = {
       receiptNumber,
+      customerId: customerIdField,
       companyName: companyDetails.companyName,
       companyLogo: companyDetails.companyLogo,
       companyAddress: companyDetails.companyAddress,
@@ -222,9 +268,12 @@ const generateReceipt = async (req, res) => {
       taxAmount: vatAmount,
       totalAmount: grandTotal,
       amountInWords,
+      paidAmount: finalPaidAmount,
+      dueAmount: dueAmount,
+      paymentStatus: paymentStatus,
       paymentMethod: paymentMethod || 'Cash',
-      paymentReference: finalTransactionId,
-      paymentStatus: paymentStatus || 'Pending',
+      paymentReference: transactionId || '',
+      bankName: bankName || '',
       remarks: finalRemarks,
       customerSignature: customerSignature || '',
       authorizedSignature: authorizedSignature || '',
@@ -234,56 +283,44 @@ const generateReceipt = async (req, res) => {
       generatedByRole: req.user.role,
       issuedBy: req.user.id,
       issuedByName: req.user.name,
-      // ============================================
-      // FIX: Use the correct status
-      // ============================================
       status: finalStatus,
       isEditable: isEditable,
       category: 'Invoice'
     };
 
     // If paid, set payment date
-    if (isPaid) {
+    if (isFullyPaid) {
       receiptData.paymentDate = new Date();
     }
 
-    console.log('Receipt data to save:', {
-      ...receiptData,
-      status: receiptData.status,
-      paymentStatus: receiptData.paymentStatus,
-      isEditable: receiptData.isEditable
-    });
+    // Add payment history
+    if (finalPaidAmount > 0) {
+      receiptData.paymentHistory = [{
+        amount: finalPaidAmount,
+        method: paymentMethod || 'Cash',
+        reference: transactionId || '',
+        bankName: bankName || '',
+        date: new Date(),
+        receivedBy: req.user.id,
+        receivedByName: req.user.name,
+        notes: 'Initial payment'
+      }];
+    }
 
-    // Create receipt
+    console.log('Receipt data to save:', receiptData);
+
+    // Create receipt - NO PRE-SAVE MIDDLEWARE
     const receipt = new Receipt(receiptData);
     await receipt.save();
 
     // Add audit log
     receipt.auditLog.push({
-      action: isPaid ? 'generated_and_paid' : 'generated',
+      action: isFullyPaid ? 'generated_and_paid' : 'generated',
       user: req.user.id,
       userName: req.user.name,
-      details: `Receipt ${receipt.receiptNumber} generated for ${customerName}${isPaid ? ' (Paid)' : ''}`
+      details: `Receipt ${receipt.receiptNumber} generated for ${customerName} - Paid: ${finalPaidAmount}, Due: ${dueAmount}`
     });
     await receipt.save();
-
-    // Send notification to recipient if they exist in system
-    if (customerEmail) {
-      const recipient = await User.findOne({ email: customerEmail });
-      if (recipient) {
-        await notificationService.createNotification({
-          recipient: recipient._id,
-          sender: req.user.id,
-          senderName: req.user.name,
-          type: 'system_alert',
-          title: `New Receipt - ${receipt.receiptNumber}`,
-          message: `A new receipt of NPR ${grandTotal.toFixed(2)} has been generated${isPaid ? ' and paid' : ''}`,
-          data: { receiptId: receipt._id },
-          link: `/account/receipts/${receipt._id}`,
-          priority: 'high'
-        });
-      }
-    }
 
     res.status(201).json({
       success: true,
@@ -298,7 +335,99 @@ const generateReceipt = async (req, res) => {
   }
 };
 
-// @desc    Edit receipt (only if not paid)
+// @desc    Get all receipts
+// @route   GET /api/receipts
+// @access  Private
+const getReceipts = async (req, res) => {
+  try {
+    const { status, category, page = 1, limit = 20 } = req.query;
+    
+    const query = {};
+    
+    const user = await User.findById(req.user.id);
+    query.$or = [
+      { generatedBy: req.user.id },
+      { recipientEmail: user.email }
+    ];
+
+    if (status) query.status = status;
+    if (category) query.category = category;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const receipts = await Receipt.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('generatedBy', 'name email role profilePicture')
+      .populate('issuedBy', 'name email role')
+      .populate('customerId', 'name phone email address');
+
+    const total = await Receipt.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      count: receipts.length,
+      total,
+      totalPages: Math.ceil(total / parseInt(limit)),
+      currentPage: parseInt(page),
+      data: receipts
+    });
+  } catch (error) {
+    console.error('Get receipts error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get single receipt
+// @route   GET /api/receipts/:id
+// @access  Private
+const getReceipt = async (req, res) => {
+  try {
+    const receipt = await Receipt.findById(req.params.id)
+      .populate('generatedBy', 'name email role profilePicture')
+      .populate('issuedBy', 'name email role')
+      .populate('customerId', 'name phone email address');
+
+    if (!receipt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Receipt not found'
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    const isGenerator = receipt.generatedBy._id.toString() === req.user.id;
+    const isRecipient = receipt.recipientEmail === user.email;
+    const isSuperAdmin = ['super_admin', 'ceo', 'founder'].includes(req.user.role);
+
+    if (!isGenerator && !isRecipient && !isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this receipt'
+      });
+    }
+
+    receipt.viewCount += 1;
+    await receipt.save();
+
+    res.status(200).json({
+      success: true,
+      data: receipt
+    });
+  } catch (error) {
+    console.error('Get receipt error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Edit receipt
 // @route   PUT /api/receipts/:id/edit
 // @access  Private
 const editReceipt = async (req, res) => {
@@ -312,7 +441,6 @@ const editReceipt = async (req, res) => {
       });
     }
 
-    // Check if receipt is editable
     if (!receipt.isEditable || receipt.status === 'paid') {
       return res.status(400).json({
         success: false,
@@ -320,7 +448,6 @@ const editReceipt = async (req, res) => {
       });
     }
 
-    // Check authorization
     const isGenerator = receipt.generatedBy.toString() === req.user.id;
     const isSuperAdmin = ['super_admin', 'ceo', 'founder'].includes(req.user.role);
 
@@ -341,6 +468,8 @@ const editReceipt = async (req, res) => {
       vatRate,
       paymentMethod,
       transactionId,
+      bankName,
+      paidAmount,
       paymentStatus,
       remarks,
       customerSignature,
@@ -355,7 +484,9 @@ const editReceipt = async (req, res) => {
       subtotal: receipt.subtotal,
       totalAmount: receipt.totalAmount,
       status: receipt.status,
-      paymentStatus: receipt.paymentStatus
+      paymentStatus: receipt.paymentStatus,
+      paidAmount: receipt.paidAmount,
+      dueAmount: receipt.dueAmount
     };
 
     // Update customer information
@@ -366,17 +497,6 @@ const editReceipt = async (req, res) => {
 
     // Update services if provided
     if (services && services.length) {
-      // Validate services
-      for (const service of services) {
-        if (!service.serviceName || service.quantity <= 0 || service.unitPrice <= 0) {
-          return res.status(400).json({
-            success: false,
-            message: 'Please fill in all service details correctly'
-          });
-        }
-      }
-
-      // Recalculate totals
       let subtotal = 0;
       const serviceItems = services.map(service => {
         const total = service.quantity * service.unitPrice;
@@ -404,21 +524,27 @@ const editReceipt = async (req, res) => {
       receipt.taxAmount = vatAmount;
       receipt.totalAmount = grandTotal;
       receipt.amountInWords = numberToWords(grandTotal);
+
+      // Recalculate due amount
+      const paidAmountValue = parseFloat(paidAmount) || receipt.paidAmount || 0;
+      receipt.paidAmount = Math.min(paidAmountValue, grandTotal);
+      receipt.dueAmount = grandTotal - receipt.paidAmount;
     }
 
     // Update payment information
     if (paymentMethod) receipt.paymentMethod = paymentMethod;
     if (transactionId) receipt.paymentReference = transactionId;
+    if (bankName) receipt.bankName = bankName;
     
-    // ============================================
-    // FIX: Update status when payment status changes
-    // ============================================
     if (paymentStatus) {
       receipt.paymentStatus = paymentStatus;
       if (paymentStatus === 'Paid') {
         receipt.status = 'paid';
         receipt.isEditable = false;
         receipt.paymentDate = new Date();
+        // Ensure paid amount equals total
+        receipt.paidAmount = receipt.totalAmount;
+        receipt.dueAmount = 0;
       } else {
         receipt.status = 'issued';
         receipt.isEditable = true;
@@ -447,14 +573,15 @@ const editReceipt = async (req, res) => {
           subtotal: receipt.subtotal,
           totalAmount: receipt.totalAmount,
           status: receipt.status,
-          paymentStatus: receipt.paymentStatus
+          paymentStatus: receipt.paymentStatus,
+          paidAmount: receipt.paidAmount,
+          dueAmount: receipt.dueAmount
         }
       }
     });
 
     await receipt.save();
 
-    // Add audit log
     receipt.auditLog.push({
       action: 'edited',
       user: req.user.id,
@@ -498,7 +625,6 @@ const markAsPaid = async (req, res) => {
       });
     }
 
-    // Check authorization
     const isGenerator = receipt.generatedBy.toString() === req.user.id;
     const isSuperAdmin = ['super_admin', 'ceo', 'founder'].includes(req.user.role);
 
@@ -509,12 +635,11 @@ const markAsPaid = async (req, res) => {
       });
     }
 
-    // ============================================
-    // FIX: Update both status and paymentStatus
-    // ============================================
     receipt.status = 'paid';
     receipt.isEditable = false;
     receipt.paymentStatus = 'Paid';
+    receipt.paidAmount = receipt.totalAmount;
+    receipt.dueAmount = 0;
     receipt.paymentDate = paymentDate || new Date();
     if (paymentReference) {
       receipt.paymentReference = paymentReference;
@@ -522,7 +647,6 @@ const markAsPaid = async (req, res) => {
 
     await receipt.save();
 
-    // Add audit log
     receipt.auditLog.push({
       action: 'paid',
       user: req.user.id,
@@ -537,96 +661,6 @@ const markAsPaid = async (req, res) => {
     });
   } catch (error) {
     console.error('Mark as paid error:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// @desc    Get all receipts
-// @route   GET /api/receipts
-// @access  Private
-const getReceipts = async (req, res) => {
-  try {
-    const { status, category, page = 1, limit = 20 } = req.query;
-    
-    const query = {};
-    
-    const user = await User.findById(req.user.id);
-    query.$or = [
-      { generatedBy: req.user.id },
-      { recipientEmail: user.email }
-    ];
-
-    if (status) query.status = status;
-    if (category) query.category = category;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const receipts = await Receipt.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate('generatedBy', 'name email role profilePicture')
-      .populate('issuedBy', 'name email role');
-
-    const total = await Receipt.countDocuments(query);
-
-    res.status(200).json({
-      success: true,
-      count: receipts.length,
-      total,
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page),
-      data: receipts
-    });
-  } catch (error) {
-    console.error('Get receipts error:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// @desc    Get single receipt
-// @route   GET /api/receipts/:id
-// @access  Private
-const getReceipt = async (req, res) => {
-  try {
-    const receipt = await Receipt.findById(req.params.id)
-      .populate('generatedBy', 'name email role profilePicture')
-      .populate('issuedBy', 'name email role');
-
-    if (!receipt) {
-      return res.status(404).json({
-        success: false,
-        message: 'Receipt not found'
-      });
-    }
-
-    const user = await User.findById(req.user.id);
-    const isGenerator = receipt.generatedBy._id.toString() === req.user.id;
-    const isRecipient = receipt.recipientEmail === user.email;
-    const isSuperAdmin = ['super_admin', 'ceo', 'founder'].includes(req.user.role);
-
-    if (!isGenerator && !isRecipient && !isSuperAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this receipt'
-      });
-    }
-
-    receipt.viewCount += 1;
-    await receipt.save();
-
-    res.status(200).json({
-      success: true,
-      data: receipt
-    });
-  } catch (error) {
-    console.error('Get receipt error:', error);
     res.status(400).json({
       success: false,
       message: error.message
@@ -660,13 +694,12 @@ const updateReceiptStatus = async (req, res) => {
       });
     }
 
-    // ============================================
-    // FIX: Update both status and paymentStatus
-    // ============================================
     receipt.status = status;
     if (status === 'paid') {
       receipt.isEditable = false;
       receipt.paymentStatus = 'Paid';
+      receipt.paidAmount = receipt.totalAmount;
+      receipt.dueAmount = 0;
       receipt.paymentDate = paymentDate || new Date();
       if (paymentReference) {
         receipt.paymentReference = paymentReference;
