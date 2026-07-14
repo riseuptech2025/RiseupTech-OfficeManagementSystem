@@ -39,7 +39,9 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        onClose();
+        if (onClose) {
+          onClose();
+        }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -59,11 +61,10 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
 
       if (reset) {
         setNotifications(response.notifications);
-        setHasMore(response.notifications.length < response.total);
       } else {
         setNotifications(prev => [...prev, ...response.notifications]);
-        setHasMore(response.notifications.length < response.total);
       }
+      setHasMore(currentPage < response.totalPages);
       setPage(currentPage + 1);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -108,8 +109,9 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   const handleDelete = async (id) => {
     try {
       await notificationService.deleteNotification(id);
+      const deleted = notifications.find(n => n._id === id);
       setNotifications(prev => prev.filter(n => n._id !== id));
-      if (!notifications.find(n => n._id === id)?.isRead) {
+      if (!deleted?.isRead) {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (error) {
@@ -134,7 +136,9 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
     }
     if (notification.link) {
       navigate(notification.link);
-      onClose();
+      if (onClose) {
+        onClose();
+      }
     }
   };
 
@@ -173,173 +177,150 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div ref={dropdownRef} className="relative">
-      {/* Notification Button with Badge */}
-      <button
-        onClick={onClose}
-        className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors relative"
-      >
-        <FaBell className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
-
-      {/* Dropdown */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            className="absolute right-0 mt-2 w-96 max-h-[500px] bg-[#111118] rounded-xl border border-[#00D4FF]/10 shadow-2xl shadow-[#00D4FF]/5 overflow-hidden z-[9999]"
+    <div ref={dropdownRef} className="absolute right-0 mt-2 w-96 max-h-[500px] bg-[#111118] rounded-xl border border-[#00D4FF]/10 shadow-2xl shadow-[#00D4FF]/5 overflow-hidden z-[9999]">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-[#00D4FF]/10">
+        <div>
+          <h3 className="text-lg font-semibold text-white">Notifications</h3>
+          <p className="text-xs text-gray-400">
+            {unreadCount} unread {unreadCount === 1 ? 'notification' : 'notifications'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllAsRead}
+              className="text-xs text-[#00D4FF] hover:text-[#00D4FF]/80 transition-colors flex items-center gap-1"
+            >
+              <FaCheckDouble className="w-3 h-3" />
+              Mark all read
+            </button>
+          )}
+          {notifications.length > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+            >
+              <FaTrash className="w-3 h-3" />
+              Delete all
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[#00D4FF]/10">
-              <div>
-                <h3 className="text-lg font-semibold text-white">Notifications</h3>
-                <p className="text-xs text-gray-400">
-                  {unreadCount} unread {unreadCount === 1 ? 'notification' : 'notifications'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {unreadCount > 0 && (
-                  <button
-                    onClick={handleMarkAllAsRead}
-                    className="text-xs text-[#00D4FF] hover:text-[#00D4FF]/80 transition-colors flex items-center gap-1"
-                  >
-                    <FaCheckDouble className="w-3 h-3" />
-                    Mark all read
-                  </button>
-                )}
-                {notifications.length > 0 && (
-                  <button
-                    onClick={handleDeleteAll}
-                    className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
-                  >
-                    <FaTrash className="w-3 h-3" />
-                    Delete all
-                  </button>
-                )}
-                <button
-                  onClick={onClose}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <FaTimes className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            <FaTimes className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
-            {/* Notification List */}
-            <div className="overflow-y-auto max-h-[400px]">
-              {loading && notifications.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <FaSpinner className="w-6 h-6 text-[#00D4FF] animate-spin" />
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-                  <FaBell className="w-12 h-12 mb-3 opacity-20" />
-                  <p className="text-lg">No notifications</p>
-                  <p className="text-sm">You're all caught up!</p>
-                </div>
-              ) : (
-                <>
-                  {notifications.map((notification) => (
-                    <motion.div
-                      key={notification._id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`border-b border-[#00D4FF]/5 hover:bg-white/5 transition-colors cursor-pointer ${
-                        !notification.isRead ? 'bg-[#00D4FF]/5' : ''
-                      } ${getPriorityColor(notification.priority)}`}
-                      onClick={() => handleNotificationClick(notification)}
-                    >
-                      <div className="p-4">
-                        <div className="flex items-start gap-3">
-                          {/* Icon */}
-                          <div className="w-10 h-10 rounded-full bg-[#0A0A0F] flex items-center justify-center flex-shrink-0">
-                            {getNotificationIcon(notification.type)}
-                          </div>
-                          
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-medium text-white truncate">
-                                  {notification.title}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-xs text-gray-500">
-                                    {notification.timeAgo || new Date(notification.createdAt).toLocaleDateString()}
-                                  </span>
-                                  {notification.priority && (
-                                    <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                      notification.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
-                                      notification.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
-                                      notification.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                                      'bg-gray-500/20 text-gray-400'
-                                    }`}>
-                                      {notification.priority}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                {!notification.isRead && (
-                                  <span className="w-2 h-2 bg-[#00D4FF] rounded-full"></span>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDelete(notification._id);
-                                  }}
-                                  className="text-gray-500 hover:text-red-400 transition-colors p-1"
-                                >
-                                  <FaTimes className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                            {!notification.isRead && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMarkAsRead(notification._id);
-                                }}
-                                className="text-xs text-[#00D4FF] hover:text-[#00D4FF]/80 transition-colors mt-1"
-                              >
-                                Mark as read
-                              </button>
+      {/* Notification List */}
+      <div className="overflow-y-auto max-h-[400px]">
+        {loading && notifications.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <FaSpinner className="w-6 h-6 text-[#00D4FF] animate-spin" />
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+            <FaBell className="w-12 h-12 mb-3 opacity-20" />
+            <p className="text-lg">No notifications</p>
+            <p className="text-sm">You're all caught up!</p>
+          </div>
+        ) : (
+          <>
+            {notifications.map((notification) => (
+              <motion.div
+                key={notification._id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={`border-b border-[#00D4FF]/5 hover:bg-white/5 transition-colors cursor-pointer ${
+                  !notification.isRead ? 'bg-[#00D4FF]/5' : ''
+                } ${getPriorityColor(notification.priority)}`}
+                onClick={() => handleNotificationClick(notification)}
+              >
+                <div className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Icon */}
+                    <div className="w-10 h-10 rounded-full bg-[#0A0A0F] flex items-center justify-center flex-shrink-0">
+                      {getNotificationIcon(notification.type)}
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-white truncate">
+                            {notification.title}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
+                            {notification.message}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-500">
+                              {notification.timeAgo || new Date(notification.createdAt).toLocaleDateString()}
+                            </span>
+                            {notification.priority && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                notification.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
+                                notification.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                                notification.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-gray-500/20 text-gray-400'
+                              }`}>
+                                {notification.priority}
+                              </span>
                             )}
                           </div>
                         </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {!notification.isRead && (
+                            <span className="w-2 h-2 bg-[#00D4FF] rounded-full"></span>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(notification._id);
+                            }}
+                            className="text-gray-500 hover:text-red-400 transition-colors p-1"
+                          >
+                            <FaTimes className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
-                    </motion.div>
-                  ))}
-
-                  {hasMore && (
-                    <button
-                      onClick={() => fetchNotifications(false)}
-                      className="w-full py-3 text-sm text-[#00D4FF] hover:text-[#00D4FF]/80 transition-colors border-t border-[#00D4FF]/10"
-                    >
-                      {loading ? (
-                        <FaSpinner className="w-4 h-4 mx-auto animate-spin" />
-                      ) : (
-                        'Load more'
+                      {!notification.isRead && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsRead(notification._id);
+                          }}
+                          className="text-xs text-[#00D4FF] hover:text-[#00D4FF]/80 transition-colors mt-1"
+                        >
+                          Mark as read
+                        </button>
                       )}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </motion.div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+
+            {hasMore && (
+              <button
+                onClick={() => fetchNotifications(false)}
+                className="w-full py-3 text-sm text-[#00D4FF] hover:text-[#00D4FF]/80 transition-colors border-t border-[#00D4FF]/10"
+              >
+                {loading ? (
+                  <FaSpinner className="w-4 h-4 mx-auto animate-spin" />
+                ) : (
+                  'Load more'
+                )}
+              </button>
+            )}
+          </>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 };

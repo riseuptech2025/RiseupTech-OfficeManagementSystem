@@ -16,6 +16,7 @@ const leaveRoutes = require('./routes/leaveRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const receiptRoutes = require('./routes/receiptRoutes');
 
 // Connect to MongoDB
 connectDB();
@@ -50,6 +51,7 @@ app.use('/api/leaves', leaveRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/receipts', receiptRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

@@ -8,6 +8,7 @@ import {
   FaSignOutAlt,
   FaBars,
   FaTimes,
+  FaReceipt,
   FaUserCircle,
   FaChevronDown,
   FaCalendarAlt,
@@ -85,6 +86,7 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onLogout }) => {
     { id: 'reports', label: 'Reports', icon: FaFileAlt, path: '/reports' },
     { id: 'tasks', label: 'Tasks', icon: FaTasks, path: '/tasks' },
     { id: 'activity', label: 'Activity', icon: FaHistory, path: '/activity' },
+     { id: 'account', label: 'Account', icon: FaReceipt, path: '/account' },
     { id: 'management', label: 'Management', icon: FaCog, path: '/management' },
   ];
 

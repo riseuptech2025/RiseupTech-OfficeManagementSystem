@@ -1,3 +1,4 @@
+// components/Navbar.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaBars, FaTimes, FaBell, FaUserCircle } from 'react-icons/fa';
@@ -39,6 +40,10 @@ const Navbar = ({
     );
   };
 
+  const handleNotificationToggle = () => {
+    setShowNotifications(!showNotifications);
+  };
+
   return (
     <nav className="bg-[#111118]/95 backdrop-blur-xl border-b border-[#00D4FF]/10 sticky top-0 z-40">
       <div className="px-6 py-4 flex justify-between items-center">
@@ -61,9 +66,10 @@ const Navbar = ({
           {/* Notification Bell */}
           <div className="relative">
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={handleNotificationToggle}
               className="p-2.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors relative group"
             >
+              <FaBell className="w-5 h-5" />
               
               {/* Notification Badge */}
               {unreadCount > 0 && (
@@ -71,14 +77,13 @@ const Navbar = ({
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
-               {/* Notification Dropdown */}
+            </button>
+            
+            {/* Notification Dropdown */}
             <NotificationDropdown 
               isOpen={showNotifications} 
               onClose={() => setShowNotifications(false)} 
             />
-            </button>
-            
-           
           </div>
           
           {/* User Profile Button */}

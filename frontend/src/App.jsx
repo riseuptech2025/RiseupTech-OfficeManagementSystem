@@ -12,6 +12,7 @@ import UserPage from './pages/UserPage';
 import ActivityPage from './pages/ActivityPage';
 import ManagementPage from './pages/ManagementPage';
 import NotificationPage from './pages/NotificationPage';
+import AccountPage from './pages/Account/AccountPage';
 import { authService } from './services/api';
 
 const ProtectedRoute = ({ children }) => {
@@ -91,6 +92,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+  path="/account"
+  element={
+    <ProtectedRoute>
+      <AccountPage />
+    </ProtectedRoute>
+  }
+/>
         <Route
   path="/notifications"
   element={
