@@ -37,7 +37,7 @@ app.use(express.urlencoded({
 
 app.use(morgan('dev'));
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'https://riseup-tech-office-management-syste-lemon.vercel.app'],
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'https://riseup-tech-office-management-syste-lemon.vercel.app', 'https://workspace.riseuptech.com.np'],
   credentials: true,
 }));
 
