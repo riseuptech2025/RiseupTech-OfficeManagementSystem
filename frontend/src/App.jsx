@@ -1,3 +1,4 @@
+// App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import WelcomePage from './pages/WelcomePage';
@@ -7,6 +8,10 @@ import ProfilePage from './pages/ProfilePage';
 import LeavePage from './pages/LeavePage';
 import ReportPage from './pages/ReportPage';
 import TaskPage from './pages/TaskPage';
+import UserPage from './pages/UserPage';
+import ActivityPage from './pages/ActivityPage';
+import ManagementPage from './pages/ManagementPage';
+import NotificationPage from './pages/NotificationPage';
 import { authService } from './services/api';
 
 const ProtectedRoute = ({ children }) => {
@@ -39,6 +44,14 @@ function App() {
           }
         />
         <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <UserPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/leaves"
           element={
             <ProtectedRoute>
@@ -62,6 +75,30 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/activity"
+          element={
+            <ProtectedRoute>
+              <ActivityPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/management"
+          element={
+            <ProtectedRoute>
+              <ManagementPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+  path="/notifications"
+  element={
+    <ProtectedRoute>
+      <NotificationPage />
+    </ProtectedRoute>
+  }
+/>
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

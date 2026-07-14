@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -55,6 +56,8 @@ const createUser = async (req, res) => {
       phone: phone || '',
       isActive: true,
     });
+
+    await notificationService.notifyUserCreation(user, req.user.name);
 
     res.status(201).json({
       success: true,

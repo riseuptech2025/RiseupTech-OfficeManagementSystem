@@ -1,5 +1,6 @@
 const Report = require('../models/Report');
 const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 
 // Helper function to determine report routing
 const getReportRecipients = async (reporterRole, reporterId) => {
@@ -71,6 +72,10 @@ const createReport = async (req, res) => {
     }
 
     const report = await Report.create(reportData);
+
+    if (report.assignedTo) {
+      await notificationService.notifyReportSubmission(report, report.assignedTo);
+    }
 
     // Add audit log
     report.auditLog.push({
@@ -245,6 +250,10 @@ const updateReportStatus = async (req, res) => {
     }
 
     await report.save();
+
+    if (status === 'resolved' || status === 'dismissed') {
+      await notificationService.notifyReportUpdate(report, req.user.name, status);
+    }
 
     // Add audit log
     report.auditLog.push({

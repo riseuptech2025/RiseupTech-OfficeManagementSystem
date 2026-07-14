@@ -1,5 +1,6 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 
 // Helper function to check if user can assign task to target role
 const canAssignTask = (assignerRole, targetRole) => {
@@ -103,6 +104,8 @@ const createTask = async (req, res) => {
       details: `Task "${title}" assigned to ${assignedUser.name}`
     });
     await task.save();
+
+    await notificationService.notifyTaskAssignment(task);
 
     await task.populate('assignedBy', 'name email role');
     await task.populate('assignedTo', 'name email role profilePicture');
@@ -264,6 +267,8 @@ const updateTask = async (req, res) => {
       });
     }
 
+    const statusChanged = Boolean(status) && task.status !== status;
+
     // Update fields
     if (title) task.title = title;
     if (description) task.description = description;
@@ -285,6 +290,10 @@ const updateTask = async (req, res) => {
     }
 
     await task.save();
+
+    if (statusChanged) {
+      await notificationService.notifyTaskUpdate(task, req.user.name, status);
+    }
 
     // Add audit log
     task.auditLog.push({

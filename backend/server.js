@@ -15,7 +15,7 @@ const errorHandler = require('./middleware/errorHandler');
 const leaveRoutes = require('./routes/leaveRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const taskRoutes = require('./routes/taskRoutes');
-
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // Connect to MongoDB
 connectDB();
@@ -49,7 +49,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/tasks', taskRoutes);
-
+app.use('/api/notifications', notificationRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

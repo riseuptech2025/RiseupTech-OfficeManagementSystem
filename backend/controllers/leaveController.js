@@ -1,5 +1,6 @@
 const Leave = require('../models/Leave');
 const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 
 // Helper function to get approvers based on employee role
 const getApprovers = async (employeeRole, employeeId) => {
@@ -66,6 +67,9 @@ const applyLeave = async (req, res) => {
       attachments: attachments || [],
       status: approvers.length > 0 ? 'pending' : 'pending'
     });
+
+    const approverIds = approvers.map(approver => approver.toString());
+    await notificationService.notifyLeaveRequest(leave, approverIds);
 
     res.status(201).json({
       success: true,
@@ -239,6 +243,28 @@ const updateLeaveStatus = async (req, res) => {
     }
 
     await leave.save();
+
+    const approverName = req.user.name;
+    await notificationService.notifyLeaveStatusUpdate(leave, status, approverName);
+
+    if (status === 'rejected') {
+      const admins = await User.find({
+        role: { $in: ['super_admin', 'ceo', 'founder', 'admin'] },
+        isActive: true
+      });
+
+      await notificationService.createBulkNotifications(
+        admins.map(admin => admin._id),
+        {
+          type: 'system_alert',
+          title: `Leave Rejected - ${leave.employeeName}`,
+          message: `${leave.employeeName}'s leave was rejected by ${approverName}`,
+          data: { leaveId: leave._id },
+          link: `/leaves/${leave._id}`,
+          priority: 'medium'
+        }
+      );
+    }
 
     // Populate for response
     await leave.populate('employee', 'name email role');
