@@ -46,6 +46,19 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    // models/User.js - Add these fields
+
+requirements: {
+  type: String,
+  default: ''
+},
+dueDate: {
+  type: Date
+},
+convertedFromCustomer: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Customer'
+},
     phone: {
       type: String,
       match: [/^\+?[\d\s-]{10,}$/, 'Please add a valid phone number'],
