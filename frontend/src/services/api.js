@@ -110,6 +110,16 @@ export const authService = {
     return user ? JSON.parse(user) : null;
   },
 
+  getUsers: async () => {
+    try {
+      const response = await api.get('/users');
+      return response.data;
+    } catch (error) {
+      console.error('Get users error:', error);
+      throw error;
+    }
+  },
+
   updateUserInStorage: (userData) => {
     const currentUser = localStorage.getItem('user');
     if (currentUser) {

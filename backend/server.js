@@ -18,6 +18,8 @@ const taskRoutes = require('./routes/taskRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const receiptRoutes = require('./routes/receiptRoutes');
 const customerRoutes = require('./routes/customerRoutes');
+const salaryRoutes = require('./routes/salaryRoutes');
+const financeRoutes = require('./routes/financeRoutes');
 
 // Connect to MongoDB
 connectDB();
@@ -54,6 +56,8 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/salaries', salaryRoutes);
+app.use('/api/finance', financeRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

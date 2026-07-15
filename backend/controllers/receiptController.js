@@ -3,6 +3,8 @@ const Receipt = require('../models/Receipt');
 const Customer = require('../models/Customer');
 const User = require('../models/User');
 const notificationService = require('../services/notificationService');
+const CompanyFinance = require('../models/CompanyFinance');
+
 
 // Helper function to convert number to words
 const numberToWords = (num) => {
@@ -849,6 +851,45 @@ const downloadReceipt = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+const updateCompanyEarnings = async (receipt) => {
+  if (receipt.status === 'paid') {
+    let finance = await CompanyFinance.findOne();
+    if (!finance) {
+      finance = await CompanyFinance.create({
+        shareholders: [
+          { name: 'Ramanand Mandal', shares: 80 },
+          { name: 'Dipak Kumar Mandal Khatwe', shares: 70 }
+        ]
+      });
+    }
+    
+    finance.totalEarnings += receipt.totalAmount;
+    finance.netProfit = finance.totalEarnings - finance.totalExpenses;
+    
+    // Update monthly report
+    const month = new Date().getMonth() + 1;
+    const year = new Date().getFullYear();
+    const monthReport = finance.monthlyReports.find(
+      r => r.month === month && r.year === year
+    );
+    
+    if (monthReport) {
+      monthReport.earnings = (monthReport.earnings || 0) + receipt.totalAmount;
+      monthReport.profit = monthReport.earnings - monthReport.expenses;
+    } else {
+      finance.monthlyReports.push({
+        month,
+        year,
+        earnings: receipt.totalAmount,
+        expenses: 0,
+        profit: receipt.totalAmount
+      });
+    }
+    
+    await finance.save();
   }
 };
 
