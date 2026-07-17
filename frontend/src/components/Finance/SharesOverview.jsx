@@ -27,8 +27,12 @@ import {
   FaPrint,
   FaCalendarAlt,
   FaClock,
-  FaLongArrowAltUp,   // Replacing FaTrendUp
-  FaLongArrowAltDown  // Replacing FaTrendDown
+  FaLongArrowAltUp,
+  FaLongArrowAltDown,
+  FaReceipt,
+  FaFileInvoice,
+  FaCog,
+  FaChartBar as FaChartBarIcon
 } from 'react-icons/fa';
 import {
   Chart as ChartJS,
@@ -67,7 +71,8 @@ const SharesOverview = ({ overview, loading }) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'NPR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount || 0);
   };
 
@@ -91,6 +96,15 @@ const SharesOverview = ({ overview, loading }) => {
   const totalInvestment = overview?.shareholders?.reduce((sum, s) => sum + s.investment, 0) || 15000;
   const totalShares = overview?.totalShares || 1000;
   const companyValue = overview?.companyValue || 15000;
+  const totalEarnings = overview?.totalEarnings || 0;
+  const totalExpenditure = overview?.totalExpenditure || 0;
+  const netProfit = overview?.netProfit || 0;
+  const totalExpenses = overview?.totalExpenses?.total || 0;
+
+  // Expenditure categories for chart
+  const expenditureCategories = overview?.expenditureBreakdown || [];
+  const categoryLabels = expenditureCategories.map(item => item._id);
+  const categoryAmounts = expenditureCategories.map(item => item.total);
 
   // Prepare chart data for share price history
   const sharePriceHistory = {
@@ -150,6 +164,25 @@ const SharesOverview = ({ overview, loading }) => {
         data: overview?.shareholders?.map(s => s.investment) || [],
         backgroundColor: ['#06D6A0', '#F59E0B'],
         borderColor: ['#06D6A0', '#F59E0B'],
+        borderWidth: 2,
+        borderRadius: 8
+      }
+    ]
+  };
+
+  // Expenditure breakdown chart
+  const expenditureChartData = {
+    labels: categoryLabels.length > 0 ? categoryLabels : ['No Data'],
+    datasets: [
+      {
+        label: 'Expenditure by Category (NPR)',
+        data: categoryAmounts.length > 0 ? categoryAmounts : [0],
+        backgroundColor: [
+          '#00D4FF', '#7C3AED', '#06D6A0', '#F59E0B', '#EF4444', 
+          '#EC4899', '#8B5CF6', '#14B8A6', '#F97316', '#6366F1',
+          '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'
+        ],
+        borderColor: '#ffffff',
         borderWidth: 2,
         borderRadius: 8
       }
@@ -230,6 +263,38 @@ const SharesOverview = ({ overview, loading }) => {
     cutout: '60%'
   };
 
+  const expenditureChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: {
+          color: '#D1D5DB',
+          font: {
+            size: 11,
+            family: 'Inter'
+          },
+          padding: 15
+        }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(17, 17, 24, 0.95)',
+        borderColor: '#00D4FF',
+        borderWidth: 1,
+        titleColor: '#FFFFFF',
+        bodyColor: '#D1D5DB',
+        callbacks: {
+          label: function(context) {
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const percentage = ((context.parsed / total) * 100).toFixed(1);
+            return `${context.label}: ${formatCurrency(context.parsed)} (${percentage}%)`;
+          }
+        }
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ============================================ */}
@@ -250,7 +315,7 @@ const SharesOverview = ({ overview, loading }) => {
               </p>
               <p className="text-2xl font-bold text-white mt-1">{formatCurrency(companyValue)}</p>
               <p className="text-xs text-gray-500 mt-1">
-                ↑ {shareGrowth > 0 ? '+' : ''}{shareGrowth.toFixed(1)}% from initial
+                {shareGrowth > 0 ? '+' : ''}{shareGrowth.toFixed(1)}% from initial
               </p>
             </div>
             <div className="w-12 h-12 bg-[#00D4FF]/10 rounded-xl flex items-center justify-center border border-[#00D4FF]/20">
@@ -297,16 +362,18 @@ const SharesOverview = ({ overview, loading }) => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-400 flex items-center gap-1">
-                <FaMoneyBillWave className="text-[#F59E0B]" />
-                Total Investment
+                <FaChartLine className="text-[#F59E0B]" />
+                Net Profit
               </p>
-              <p className="text-2xl font-bold text-[#F59E0B] mt-1">{formatCurrency(totalInvestment)}</p>
+              <p className={`text-2xl font-bold mt-1 ${netProfit >= 0 ? 'text-[#06D6A0]' : 'text-[#EF4444]'}`}>
+                {formatCurrency(netProfit)}
+              </p>
               <p className="text-xs text-gray-500 mt-1">
-                {totalShares} shares × Rs. 15.00
+                Revenue: {formatCurrency(totalEarnings)} • Expenses: {formatCurrency(totalExpenses)}
               </p>
             </div>
             <div className="w-12 h-12 bg-[#F59E0B]/10 rounded-xl flex items-center justify-center border border-[#F59E0B]/20">
-              <FaMoneyBillWave className="w-6 h-6 text-[#F59E0B]" />
+              <FaChartLine className="w-6 h-6 text-[#F59E0B]" />
             </div>
           </div>
         </motion.div>
@@ -320,18 +387,16 @@ const SharesOverview = ({ overview, loading }) => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-400 flex items-center gap-1">
-                <FaChartLine className="text-[#7C3AED]" />
-                Net Profit
+                <FaWallet className="text-[#7C3AED]" />
+                Total Expenditure
               </p>
-              <p className={`text-2xl font-bold mt-1 ${overview?.netProfit >= 0 ? 'text-[#06D6A0]' : 'text-[#EF4444]'}`}>
-                {formatCurrency(overview?.netProfit)}
-              </p>
+              <p className="text-2xl font-bold text-[#EF4444] mt-1">{formatCurrency(totalExpenditure)}</p>
               <p className="text-xs text-gray-500 mt-1">
-                {overview?.netProfit >= 0 ? 'Profitable' : 'In Loss'}
+                {overview?.expenditureBreakdown?.length || 0} categories
               </p>
             </div>
             <div className="w-12 h-12 bg-[#7C3AED]/10 rounded-xl flex items-center justify-center border border-[#7C3AED]/20">
-              <FaChartLine className="w-6 h-6 text-[#7C3AED]" />
+              <FaReceipt className="w-6 h-6 text-[#7C3AED]" />
             </div>
           </div>
         </motion.div>
@@ -415,6 +480,39 @@ const SharesOverview = ({ overview, loading }) => {
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* ============================================ */}
+      {/* EXPENDITURE BREAKDOWN CHART */}
+      {/* ============================================ */}
+      {expenditureCategories.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+          className="bg-[#111118]/80 backdrop-blur-sm rounded-xl p-6 border border-[#00D4FF]/10"
+        >
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <FaChartBarIcon className="text-[#EF4444]" />
+            Expenditure Breakdown
+          </h3>
+          <div className="h-64">
+            <Bar data={expenditureChartData} options={expenditureChartOptions} />
+          </div>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            {expenditureCategories.slice(0, 4).map((item, index) => (
+              <div key={index} className="bg-[#0A0A0F]/50 rounded-lg p-2 flex justify-between">
+                <span className="text-gray-400">{item._id}</span>
+                <span className="text-white font-medium">{formatCurrency(item.total)}</span>
+              </div>
+            ))}
+            {expenditureCategories.length > 4 && (
+              <div className="bg-[#0A0A0F]/50 rounded-lg p-2 text-center text-gray-400">
+                +{expenditureCategories.length - 4} more categories
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* ============================================ */}
       {/* SHAREHOLDER DISTRIBUTION & COMPARISON */}
@@ -582,7 +680,7 @@ const SharesOverview = ({ overview, loading }) => {
       </motion.div>
 
       {/* ============================================ */}
-      {/* COMPANY SUMMARY */}
+      {/* FINANCIAL SUMMARY */}
       {/* ============================================ */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -596,16 +694,18 @@ const SharesOverview = ({ overview, loading }) => {
             <p className="text-lg font-bold text-white">Rs. 15,000</p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-gray-400">Total Shares</p>
-            <p className="text-lg font-bold text-white">1,000</p>
+            <p className="text-xs text-gray-400">Total Revenue</p>
+            <p className="text-lg font-bold text-[#06D6A0]">{formatCurrency(totalEarnings)}</p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-gray-400">Shareholders</p>
-            <p className="text-lg font-bold text-white">{overview?.shareholders?.length || 0}</p>
+            <p className="text-xs text-gray-400">Total Expenses</p>
+            <p className="text-lg font-bold text-[#EF4444]">{formatCurrency(totalExpenses)}</p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-gray-400">Share Price</p>
-            <p className="text-lg font-bold text-[#00D4FF]">Rs. {currentSharePrice.toFixed(2)}</p>
+            <p className="text-xs text-gray-400">Net Profit</p>
+            <p className={`text-lg font-bold ${netProfit >= 0 ? 'text-[#06D6A0]' : 'text-[#EF4444]'}`}>
+              {formatCurrency(netProfit)}
+            </p>
           </div>
         </div>
       </motion.div>

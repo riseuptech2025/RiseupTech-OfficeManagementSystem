@@ -11,11 +11,11 @@ const generateReceiptNumber = async () => {
   const year = new Date().getFullYear();
   const month = String(new Date().getMonth() + 1).padStart(2, '0');
   const count = await Expenditure.countDocuments() + 1;
-  return `RT-EXP-${month}-${String(count).padStart(4, '0')}`;
+  return `EXP-${year}${month}-${String(count).padStart(4, '0')}`;
 };
 
 // ============================================
-// Helper: Update Company Finances
+// Helper: Update Company Finances with Expenditure
 // ============================================
 const updateCompanyFinances = async (expenditure, action, oldValues = null, paymentAmount = 0) => {
   try {
@@ -32,45 +32,109 @@ const updateCompanyFinances = async (expenditure, action, oldValues = null, paym
         ],
         totalEarnings: 0,
         totalExpenses: 0,
+        totalExpenditure: 0,
         netProfit: 0,
         companyValue: 15000
       });
     }
 
-    if (action === 'create' || action === 'update') {
-      const expenseAmount = action === 'create' ? expenditure.amount : 
-                           (expenditure.amount - (oldValues?.amount || 0));
+    if (action === 'create') {
+      // Add to total expenditure
+      finance.totalExpenditure = (finance.totalExpenditure || 0) + expenditure.amount;
       
-      if (action === 'create') {
-        finance.totalExpenses += expenditure.amount;
-      } else if (action === 'update') {
-        finance.totalExpenses += (expenditure.amount - (oldValues?.amount || 0));
+      // Update expenditure breakdown by category
+      if (expenditure.category && finance.expenditureBreakdown) {
+        finance.expenditureBreakdown[expenditure.category] = 
+          (finance.expenditureBreakdown[expenditure.category] || 0) + expenditure.amount;
       }
       
-      finance.netProfit = finance.totalEarnings - finance.totalExpenses;
+      // Add transaction
+      finance.transactions.push({
+        type: 'Expenditure',
+        category: expenditure.category,
+        description: expenditure.description,
+        amount: expenditure.amount,
+        date: expenditure.transactionDate || new Date(),
+        reference: expenditure.receiptNumber,
+        relatedTo: {
+          model: 'Expenditure',
+          id: expenditure._id
+        },
+        createdBy: expenditure.createdBy,
+        createdByName: expenditure.createdByName
+      });
+      
+    } else if (action === 'update') {
+      const oldAmount = oldValues?.amount || 0;
+      const difference = expenditure.amount - oldAmount;
+      
+      if (difference !== 0) {
+        finance.totalExpenditure = (finance.totalExpenditure || 0) + difference;
+        
+        // Update expenditure breakdown
+        if (oldValues?.category && oldValues.category !== expenditure.category) {
+          // Remove from old category
+          if (finance.expenditureBreakdown) {
+            finance.expenditureBreakdown[oldValues.category] = 
+              Math.max(0, (finance.expenditureBreakdown[oldValues.category] || 0) - oldAmount);
+            // Add to new category
+            finance.expenditureBreakdown[expenditure.category] = 
+              (finance.expenditureBreakdown[expenditure.category] || 0) + expenditure.amount;
+          }
+        } else if (expenditure.category && finance.expenditureBreakdown) {
+          finance.expenditureBreakdown[expenditure.category] = 
+            (finance.expenditureBreakdown[expenditure.category] || 0) + difference;
+        }
+      }
+      
     } else if (action === 'delete') {
-      finance.totalExpenses -= expenditure.amount;
-      finance.netProfit = finance.totalEarnings - finance.totalExpenses;
+      // Remove from total expenditure
+      finance.totalExpenditure = Math.max(0, (finance.totalExpenditure || 0) - expenditure.amount);
+      
+      // Remove from expenditure breakdown
+      if (expenditure.category && finance.expenditureBreakdown) {
+        finance.expenditureBreakdown[expenditure.category] = 
+          Math.max(0, (finance.expenditureBreakdown[expenditure.category] || 0) - expenditure.amount);
+      }
+      
+    } else if (action === 'payment') {
+      // Payment doesn't change total expenditure
+      // Just update payment status tracking
     }
 
+    // Recalculate net profit
+    const totalEarnings = finance.totalEarnings || 0;
+    const totalExpenses = finance.totalExpenses || 0;
+    const totalExpenditure = finance.totalExpenditure || 0;
+    
+    finance.netProfit = totalEarnings - totalExpenses - totalExpenditure;
+    
     // Recalculate share values
     const totalShares = finance.totalShares || 1000;
+    const initialInvestment = finance.initialInvestment || 15000;
+    
     finance.shareholders.forEach(shareholder => {
       shareholder.percentage = (shareholder.shares / totalShares) * 100;
+      shareholder.investment = shareholder.shares * (initialInvestment / totalShares);
     });
+    
     finance.totalShareValue = totalShares * finance.sharePrice;
-    finance.companyValue = finance.netProfit + finance.initialInvestment;
+    finance.companyValue = finance.netProfit + initialInvestment;
     finance.sharePrice = finance.companyValue / totalShares;
 
     await finance.save();
+    return finance;
   } catch (error) {
     console.error('Update company finances error:', error);
+    throw error;
   }
 };
 
+// ============================================
 // @desc    Create expenditure receipt
 // @route   POST /api/expenditures
 // @access  Private (Admin/Super Admin only)
+// ============================================
 const createExpenditure = async (req, res) => {
   try {
     const {
@@ -215,9 +279,11 @@ const createExpenditure = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Get all expenditures
 // @route   GET /api/expenditures
 // @access  Private
+// ============================================
 const getExpenditures = async (req, res) => {
   try {
     const { 
@@ -294,9 +360,11 @@ const getExpenditures = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Get single expenditure
 // @route   GET /api/expenditures/:id
 // @access  Private
+// ============================================
 const getExpenditure = async (req, res) => {
   try {
     const expenditure = await Expenditure.findById(req.params.id)
@@ -324,9 +392,11 @@ const getExpenditure = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Update expenditure
 // @route   PUT /api/expenditures/:id
 // @access  Private (Admin/Super Admin only)
+// ============================================
 const updateExpenditure = async (req, res) => {
   try {
     const {
@@ -372,6 +442,7 @@ const updateExpenditure = async (req, res) => {
     // Store old values for audit
     const oldValues = {
       amount: expenditure.amount,
+      category: expenditure.category,
       status: expenditure.status,
       paymentStatus: expenditure.paymentStatus
     };
@@ -446,9 +517,11 @@ const updateExpenditure = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Delete expenditure (soft delete)
 // @route   DELETE /api/expenditures/:id
 // @access  Private (Admin/Super Admin only)
+// ============================================
 const deleteExpenditure = async (req, res) => {
   try {
     const expenditure = await Expenditure.findById(req.params.id);
@@ -498,9 +571,11 @@ const deleteExpenditure = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Process payment for expenditure
 // @route   PUT /api/expenditures/:id/pay
 // @access  Private (Admin/Super Admin only)
+// ============================================
 const processPayment = async (req, res) => {
   try {
     const { amount, method, reference, date } = req.body;
@@ -559,6 +634,9 @@ const processPayment = async (req, res) => {
     });
     await expenditure.save();
 
+    // Update company finances (payment doesn't change total expenditure)
+    await updateCompanyFinances(expenditure, 'payment');
+
     await expenditure.populate('createdBy', 'name email role');
     await expenditure.populate('approvedBy', 'name email role');
 
@@ -576,9 +654,11 @@ const processPayment = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Get expenditure statistics
 // @route   GET /api/expenditures/stats
 // @access  Private
+// ============================================
 const getExpenditureStats = async (req, res) => {
   try {
     const currentMonth = new Date().getMonth() + 1;
@@ -655,6 +735,9 @@ const getExpenditureStats = async (req, res) => {
   }
 };
 
+// ============================================
+// EXPORT ALL FUNCTIONS
+// ============================================
 module.exports = {
   createExpenditure,
   getExpenditures,

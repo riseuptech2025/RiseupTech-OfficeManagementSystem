@@ -2,6 +2,7 @@
 const CompanyFinance = require('../models/CompanyFinance');
 const Receipt = require('../models/Receipt');
 const Salary = require('../models/Salary');
+const Expenditure = require('../models/Expenditure');
 
 // ============================================
 // INITIAL COMPANY FINANCE DATA
@@ -25,6 +26,7 @@ const initializeCompanyFinance = async () => {
       sharePrice: 15,
       totalShareValue: 15000,
       initialInvestment: 15000,
+      initialSharePrice: 15,
       shareholders: [
         { 
           name: 'Ramanand Mandal', 
@@ -41,8 +43,25 @@ const initializeCompanyFinance = async () => {
       ],
       totalEarnings: 0,
       totalExpenses: 0,
+      totalExpenditure: 0,
       netProfit: 0,
       companyValue: 15000,
+      expenditureBreakdown: {
+        'Office Rent': 0,
+        'Utilities': 0,
+        'Salaries': 0,
+        'Equipment': 0,
+        'Software Licenses': 0,
+        'Marketing': 0,
+        'Travel': 0,
+        'Food & Beverage': 0,
+        'Stationery': 0,
+        'Maintenance': 0,
+        'Insurance': 0,
+        'Taxes': 0,
+        'Training': 0,
+        'Miscellaneous': 0
+      },
       transactions: [{
         type: 'Investment',
         category: 'Initial Investment',
@@ -64,9 +83,11 @@ const initializeCompanyFinance = async () => {
   return finance;
 };
 
-// @desc    Get company financial overview
+// ============================================
+// @desc    Get company financial overview with expenditure
 // @route   GET /api/finance/overview
 // @access  Private (Admin only)
+// ============================================
 const getFinancialOverview = async (req, res) => {
   try {
     // Initialize finance if not exists
@@ -93,9 +114,52 @@ const getFinancialOverview = async (req, res) => {
 
     const totalSalaryExpenses = salaryExpenses[0]?.total || 0;
 
+    // Get total expenditure from Expenditure model
+    const expenditureTotal = await Expenditure.aggregate([
+      { $match: { isActive: true, status: { $ne: 'Cancelled' } } },
+      { $group: {
+        _id: null,
+        total: { $sum: '$amount' }
+      }}
+    ]);
+
+    const totalExpenditure = expenditureTotal[0]?.total || 0;
+
+    // Get expenditure breakdown by category
+    const expenditureByCategory = await Expenditure.aggregate([
+      { $match: { isActive: true, status: { $ne: 'Cancelled' } } },
+      { $group: {
+        _id: '$category',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }},
+      { $sort: { total: -1 } }
+    ]);
+
     // Update finance with latest data
     finance.totalEarnings = totalEarnings;
-    finance.totalExpenses = totalSalaryExpenses + 15000; // Add initial investment as expense
+    finance.totalExpenses = totalSalaryExpenses;
+    finance.totalExpenditure = totalExpenditure;
+    
+    // Update expenditure breakdown
+    if (finance.expenditureBreakdown) {
+      // Reset all categories to 0 first
+      const categories = [
+        'Office Rent', 'Utilities', 'Salaries', 'Equipment', 'Software Licenses',
+        'Marketing', 'Travel', 'Food & Beverage', 'Stationery', 'Maintenance',
+        'Insurance', 'Taxes', 'Training', 'Miscellaneous'
+      ];
+      categories.forEach(cat => {
+        finance.expenditureBreakdown[cat] = 0;
+      });
+      
+      // Update with actual values
+      expenditureByCategory.forEach(item => {
+        if (finance.expenditureBreakdown[item._id] !== undefined) {
+          finance.expenditureBreakdown[item._id] = item.total;
+        }
+      });
+    }
     
     // Recalculate all values
     finance = await CompanyFinance.calculateShareValues(finance);
@@ -108,12 +172,17 @@ const getFinancialOverview = async (req, res) => {
       percentage: s.percentage || (s.shares / finance.totalShares) * 100
     }));
 
-    // Calculate company valuation
-    const companyValuation = finance.companyValue;
-
     // Calculate share price growth
     const initialSharePrice = 15;
     const sharePriceGrowth = ((finance.sharePrice - initialSharePrice) / initialSharePrice) * 100;
+
+    // Calculate total expenses breakdown
+    const totalExpenses = {
+      salaries: totalSalaryExpenses,
+      expenditure: totalExpenditure,
+      initialInvestment: 15000,
+      total: totalSalaryExpenses + totalExpenditure + 15000
+    };
 
     res.status(200).json({
       success: true,
@@ -121,13 +190,15 @@ const getFinancialOverview = async (req, res) => {
         ...finance.toObject(),
         shareholders,
         totalEarnings,
-        totalSalaryExpenses,
+        totalExpenses: totalExpenses,
+        totalExpenditure,
         netProfit: finance.netProfit,
         initialInvestment: 15000,
         initialSharePrice: 15,
         sharePriceGrowth: sharePriceGrowth.toFixed(2),
-        companyValuation,
+        companyValuation: finance.companyValue,
         receiptsTotal: totalEarnings,
+        expenditureBreakdown: expenditureByCategory,
         shareDetails: {
           totalShares: finance.totalShares,
           sharePrice: finance.sharePrice,
@@ -147,9 +218,11 @@ const getFinancialOverview = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Update share details (Super Admin only)
 // @route   PUT /api/finance/shares
 // @access  Private (Super Admin only)
+// ============================================
 const updateShares = async (req, res) => {
   try {
     const { shareholders, totalShares, sharePrice } = req.body;
@@ -200,9 +273,11 @@ const updateShares = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Add transaction
 // @route   POST /api/finance/transactions
 // @access  Private (Admin only)
+// ============================================
 const addTransaction = async (req, res) => {
   try {
     const { type, category, description, amount, reference } = req.body;
@@ -234,8 +309,10 @@ const addTransaction = async (req, res) => {
 
     if (type === 'Income') {
       finance.totalEarnings += parseFloat(amount);
-    } else if (type === 'Expense' || type === 'Salary') {
+    } else if (type === 'Expense') {
       finance.totalExpenses += parseFloat(amount);
+    } else if (type === 'Expenditure') {
+      finance.totalExpenditure += parseFloat(amount);
     }
 
     // Recalculate all values
@@ -255,9 +332,11 @@ const addTransaction = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Get salary breakdown by employee
 // @route   GET /api/finance/salaries/breakdown
 // @access  Private (Admin only)
+// ============================================
 const getSalaryBreakdown = async (req, res) => {
   try {
     const { month, year } = req.query;
@@ -311,9 +390,108 @@ const getSalaryBreakdown = async (req, res) => {
   }
 };
 
+// ============================================
+// @desc    Get expenditure breakdown
+// @route   GET /api/finance/expenditure-breakdown
+// @access  Private (Admin only)
+// ============================================
+const getExpenditureBreakdown = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    const query = { isActive: true, status: { $ne: 'Cancelled' } };
+    
+    if (startDate || endDate) {
+      query.transactionDate = {};
+      if (startDate) query.transactionDate.$gte = new Date(startDate);
+      if (endDate) query.transactionDate.$lte = new Date(endDate);
+    }
+
+    const breakdown = await Expenditure.aggregate([
+      { $match: query },
+      { $group: {
+        _id: '$category',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }},
+      { $sort: { total: -1 } }
+    ]);
+
+    const total = await Expenditure.aggregate([
+      { $match: query },
+      { $group: {
+        _id: null,
+        total: { $sum: '$amount' }
+      }}
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        breakdown,
+        total: total[0]?.total || 0
+      }
+    });
+  } catch (error) {
+    console.error('Get expenditure breakdown error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ============================================
+// @desc    Get financial summary
+// @route   GET /api/finance/summary
+// @access  Private (Admin only)
+// ============================================
+const getFinancialSummary = async (req, res) => {
+  try {
+    const finance = await initializeCompanyFinance();
+    
+    // Get current month's data
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    
+    const monthlyReport = finance.monthlyReports.find(
+      r => r.month === currentMonth && r.year === currentYear
+    );
+
+    const summary = {
+      totalEarnings: finance.totalEarnings || 0,
+      totalExpenses: finance.totalExpenses || 0,
+      totalExpenditure: finance.totalExpenditure || 0,
+      netProfit: finance.netProfit || 0,
+      companyValue: finance.companyValue || 0,
+      sharePrice: finance.sharePrice || 15,
+      monthlyEarnings: monthlyReport?.earnings || 0,
+      monthlyExpenses: monthlyReport?.expenses || 0,
+      monthlyProfit: monthlyReport?.profit || 0,
+      shareholders: finance.shareholders || []
+    };
+
+    res.status(200).json({
+      success: true,
+      data: summary
+    });
+  } catch (error) {
+    console.error('Get financial summary error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ============================================
+// EXPORT ALL FUNCTIONS
+// ============================================
 module.exports = {
   getFinancialOverview,
   updateShares,
   addTransaction,
-  getSalaryBreakdown
+  getSalaryBreakdown,
+  getExpenditureBreakdown,
+  getFinancialSummary
 };
