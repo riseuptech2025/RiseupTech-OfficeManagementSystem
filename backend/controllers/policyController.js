@@ -129,9 +129,9 @@ const createPolicy = async (req, res) => {
   }
 };
 
-// @desc    Get all policies
+// @desc    Get all policies (All authenticated users can view)
 // @route   GET /api/policies
-// @access  Private
+// @access  Private (All authenticated users)
 const getPolicies = async (req, res) => {
   try {
     const { category, status, appliesTo, search, page = 1, limit = 20 } = req.query;
@@ -179,9 +179,9 @@ const getPolicies = async (req, res) => {
   }
 };
 
-// @desc    Get single policy
+// @desc    Get single policy (All authenticated users can view)
 // @route   GET /api/policies/:id
-// @access  Private
+// @access  Private (All authenticated users)
 const getPolicy = async (req, res) => {
   try {
     const policy = await Policy.findById(req.params.id)
@@ -289,7 +289,7 @@ const updatePolicy = async (req, res) => {
   }
 };
 
-// @desc    Delete policy (soft delete)
+// @desc    Delete policy (soft delete) - Admin/Super Admin only
 // @route   DELETE /api/policies/:id
 // @access  Private (Admin or Super Admin only)
 const deletePolicy = async (req, res) => {
@@ -298,7 +298,7 @@ const deletePolicy = async (req, res) => {
     if (!isAdmin) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to delete policies'
+        message: 'Not authorized to delete policies. Only Admins can delete.'
       });
     }
 
@@ -342,9 +342,9 @@ const deletePolicy = async (req, res) => {
   }
 };
 
-// @desc    Download policy (increment download count)
+// @desc    Download policy - All authenticated users can download
 // @route   PUT /api/policies/:id/download
-// @access  Private
+// @access  Private (All authenticated users)
 const downloadPolicy = async (req, res) => {
   try {
     const policy = await Policy.findById(req.params.id);
@@ -372,12 +372,16 @@ const downloadPolicy = async (req, res) => {
   }
 };
 
-// @desc    Add custom signature to policy
+// ============================================
+// SIGNATURE MANAGEMENT - ALL USERS
+// ============================================
+
+// @desc    Add/Edit custom signature - All authenticated users
 // @route   POST /api/policies/:id/signatures
-// @access  Private
+// @access  Private (All authenticated users)
 const addSignature = async (req, res) => {
   try {
-    const { type, name, role, userId, signature } = req.body;
+    const { type, name, role, userId, signature, signatureId } = req.body;
     const policy = await Policy.findById(req.params.id);
 
     if (!policy) {
@@ -389,30 +393,56 @@ const addSignature = async (req, res) => {
 
     const signatureData = {
       type: type || 'Approved By',
-      name: name || '',
-      role: role || '',
-      userId: userId || null,
-      signature: signature || '',
+      name: name || req.user.name,
+      role: role || req.user.role,
+      userId: userId || req.user.id,
+      signature: signature || 'Digital Signature',
       signedBy: req.user.id
     };
 
-    const existingIndex = policy.customSignatures.findIndex(
-      s => s.type === signatureData.type && 
-      (s.userId?.toString() === signatureData.userId?.toString() || 
-       (s.name === signatureData.name && s.type === signatureData.type))
-    );
+    // If signatureId is provided, update existing signature
+    if (signatureId) {
+      const existingIndex = policy.customSignatures.findIndex(
+        s => s._id.toString() === signatureId && s.signedBy.toString() === req.user.id
+      );
 
-    if (existingIndex !== -1) {
-      policy.customSignatures[existingIndex] = signatureData;
+      if (existingIndex === -1) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only edit your own signatures'
+        });
+      }
+
+      policy.customSignatures[existingIndex] = {
+        ...policy.customSignatures[existingIndex].toObject(),
+        ...signatureData,
+        signedAt: new Date()
+      };
     } else {
-      policy.customSignatures.push(signatureData);
+      // Check if signature already exists for this user and type
+      const existingIndex = policy.customSignatures.findIndex(
+        s => s.type === signatureData.type && s.signedBy.toString() === req.user.id
+      );
+
+      if (existingIndex !== -1) {
+        policy.customSignatures[existingIndex] = {
+          ...policy.customSignatures[existingIndex].toObject(),
+          ...signatureData,
+          signedAt: new Date()
+        };
+      } else {
+        policy.customSignatures.push(signatureData);
+      }
     }
 
     await policy.save();
 
+    // Populate the signatures for response
+    await policy.populate('customSignatures.signedBy', 'name email role');
+
     res.status(200).json({
       success: true,
-      data: policy
+      data: policy.customSignatures
     });
   } catch (error) {
     console.error('Add signature error:', error);
@@ -423,9 +453,96 @@ const addSignature = async (req, res) => {
   }
 };
 
-// ============================================
-// EXPORT ALL FUNCTIONS
-// ============================================
+// @desc    Get all signatures for a policy
+// @route   GET /api/policies/:id/signatures
+// @access  Private (All authenticated users)
+const getSignatures = async (req, res) => {
+  try {
+    const policy = await Policy.findById(req.params.id)
+      .populate('customSignatures.signedBy', 'name email role')
+      .populate('signatureCards.userId', 'name email role');
+
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        message: 'Policy not found'
+      });
+    }
+
+    const signatures = {
+      signatureCards: policy.signatureCards || [],
+      customSignatures: policy.customSignatures || []
+    };
+
+    res.status(200).json({
+      success: true,
+      data: signatures
+    });
+  } catch (error) {
+    console.error('Get signatures error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Remove signature - Users can only remove their own signatures
+// @route   DELETE /api/policies/:id/signatures/:signatureId
+// @access  Private (All authenticated users)
+const removeSignature = async (req, res) => {
+  try {
+    const { id, signatureId } = req.params;
+    const policy = await Policy.findById(id);
+
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        message: 'Policy not found'
+      });
+    }
+
+    // Find the signature
+    const signatureIndex = policy.customSignatures.findIndex(
+      s => s._id.toString() === signatureId
+    );
+
+    if (signatureIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Signature not found'
+      });
+    }
+
+    const signature = policy.customSignatures[signatureIndex];
+
+    // Check if user owns this signature or is admin
+    const isOwner = signature.signedBy.toString() === req.user.id;
+    const isAdmin = ['super_admin', 'admin', 'ceo', 'founder'].includes(req.user.role);
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only remove your own signatures'
+      });
+    }
+
+    policy.customSignatures.splice(signatureIndex, 1);
+    await policy.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Signature removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove signature error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   createPolicy,
   getPolicies,
@@ -434,6 +551,8 @@ module.exports = {
   deletePolicy,
   downloadPolicy,
   addSignature,
+  getSignatures,
+  removeSignature,
   getNextPolicyId,
   getEmployeesByRole
 };

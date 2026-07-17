@@ -167,7 +167,7 @@ userSchema.pre('save', async function () {
   if (!this.employeeId) {
     const year = new Date().getFullYear();
     const timestamp = Date.now().toString().slice(-4);
-    this.employeeId = `RT-${year}${timestamp}`;
+    this.employeeId = `RT-${year}-${timestamp}`;
   }
 });
 

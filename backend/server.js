@@ -22,6 +22,7 @@ const salaryRoutes = require('./routes/salaryRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 const policyRoutes = require('./routes/policyRoutes'); // ADD THIS
 const errorHandler = require('./middleware/errorHandler');
+const expenditureRoutes = require('./routes/expenditureRoutes');
 
 // Connect to MongoDB
 connectDB();
@@ -59,7 +60,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/salaries', salaryRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/policies', policyRoutes); // ADD THIS
-
+app.use('/api/expenditures', expenditureRoutes);
 // Error handling middleware
 app.use(errorHandler);
 

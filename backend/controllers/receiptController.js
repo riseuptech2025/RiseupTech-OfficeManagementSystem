@@ -60,7 +60,7 @@ const generateReceiptNumber = async () => {
   });
   
   const sequence = String(count + 1).padStart(4, '0');
-  return `RCP-${year}${month}${day}-${sequence}`;
+  return `RT-RCP-${month}-${sequence}`;
 };
 
 // Default remarks template

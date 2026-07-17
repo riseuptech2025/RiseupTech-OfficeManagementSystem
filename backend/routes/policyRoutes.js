@@ -9,23 +9,41 @@ const {
   deletePolicy,
   downloadPolicy,
   addSignature,
+  getSignatures,
+  removeSignature,
   getNextPolicyId,
   getEmployeesByRole
 } = require('../controllers/policyController');
 const { protect } = require('../middleware/auth');
 const { adminOnly } = require('../middleware/admin');
 
-// All routes are protected
+// ============================================
+// PUBLIC ROUTES (All authenticated users)
+// ============================================
 router.get('/next-id', protect, getNextPolicyId);
 router.get('/employees/:role', protect, getEmployeesByRole);
 
+// View policies - All users
 router.route('/')
-  .get(protect, getPolicies)
-  .post(protect, adminOnly, createPolicy);
+  .get(protect, getPolicies);
 
-router.put('/:id/download', protect, downloadPolicy);
-router.post('/:id/signatures', protect, addSignature);
+// View single policy - All users
 router.get('/:id', protect, getPolicy);
+
+// Download policy - All users
+router.put('/:id/download', protect, downloadPolicy);
+
+// ============================================
+// SIGNATURE MANAGEMENT - ALL USERS
+// ============================================
+router.get('/:id/signatures', protect, getSignatures);
+router.post('/:id/signatures', protect, addSignature);
+router.delete('/:id/signatures/:signatureId', protect, removeSignature);
+
+// ============================================
+// ADMIN ONLY ROUTES
+// ============================================
+router.post('/', protect, adminOnly, createPolicy);
 router.put('/:id', protect, adminOnly, updatePolicy);
 router.delete('/:id', protect, adminOnly, deletePolicy);
 

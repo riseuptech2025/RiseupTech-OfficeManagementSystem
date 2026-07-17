@@ -86,6 +86,7 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onLogout }) => {
     { id: 'leaves', label: 'Leaves', icon: FaCalendarAlt, path: '/leaves' },
     { id: 'reports', label: 'Reports', icon: FaFileAlt, path: '/reports' },
     { id: 'tasks', label: 'Tasks', icon: FaTasks, path: '/tasks' },
+    { id: 'expenditure', label: 'Expenditure', icon: FaMoneyBillWave, path: '/expenditure' },
     { id: 'activity', label: 'Activity', icon: FaHistory, path: '/activity' },
      { id: 'account', label: 'Account', icon: FaReceipt, path: '/account' },
      { id: 'customers', label: 'Customers', icon: FaUsers, path: '/customers' }, 

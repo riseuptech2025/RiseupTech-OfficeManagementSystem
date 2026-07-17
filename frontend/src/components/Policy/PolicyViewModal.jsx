@@ -1,5 +1,5 @@
 // components/Policy/PolicyViewModal.jsx
-import React, { useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   FaTimes,
@@ -23,13 +23,29 @@ import {
   FaTag,
   FaFileAlt,
   FaBuilding,
-  FaUserCheck
+  FaUserCheck,
+  FaSpinner,
+  FaPlus,
+  FaTrash,
+  FaEdit,
+  FaCheck,
+  FaTimesCircle
 } from 'react-icons/fa';
+import { policyService } from '../../services/policyService';
 import logo from '../../assets/logo.png';
 
 const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
-  const contentRef = useRef(null);
-  
+  const [signatureName, setSignatureName] = useState('');
+  const [signatureRole, setSignatureRole] = useState('');
+  const [signatureType, setSignatureType] = useState('Approved By');
+  const [isAddingSignature, setIsAddingSignature] = useState(false);
+  const [signatures, setSignatures] = useState([]);
+  const [loadingSignatures, setLoadingSignatures] = useState(false);
+  const [editingSignatureId, setEditingSignatureId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editType, setEditType] = useState('');
+
   // Company contact information
   const companyInfo = {
     name: 'Riseup-Tech Software Company',
@@ -38,6 +54,25 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
     email: 'mail@riseuptech.com.np',
     website: 'riseuptech.com.np',
     registration: 'Reg. No: RTC-2024-001'
+  };
+
+  // Fetch signatures when policy loads
+  useEffect(() => {
+    if (policy) {
+      fetchSignatures();
+    }
+  }, [policy]);
+
+  const fetchSignatures = async () => {
+    setLoadingSignatures(true);
+    try {
+      const response = await policyService.getSignatures(policy._id);
+      setSignatures(response.data.customSignatures || []);
+    } catch (error) {
+      console.error('Failed to fetch signatures:', error);
+    } finally {
+      setLoadingSignatures(false);
+    }
   };
 
   const formatDate = (date) => {
@@ -56,18 +91,94 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
     });
   };
 
+  const handleAddSignature = async () => {
+    if (!signatureName.trim()) {
+      alert('Please enter your name');
+      return;
+    }
+
+    setIsAddingSignature(true);
+    try {
+      await policyService.addSignature(policy._id, {
+        type: signatureType,
+        name: signatureName,
+        role: signatureRole || user?.role || 'Employee',
+        userId: user?._id
+      });
+      await fetchSignatures();
+      setSignatureName('');
+      setSignatureRole('');
+      alert('Signature added successfully!');
+    } catch (error) {
+      alert('Failed to add signature');
+    } finally {
+      setIsAddingSignature(false);
+    }
+  };
+
+  const handleEditSignature = async (signatureId) => {
+    if (!editName.trim()) {
+      alert('Please enter your name');
+      return;
+    }
+
+    setIsAddingSignature(true);
+    try {
+      await policyService.addSignature(policy._id, {
+        signatureId: signatureId,
+        type: editType || 'Approved By',
+        name: editName,
+        role: editRole || user?.role || 'Employee',
+        userId: user?._id
+      });
+      await fetchSignatures();
+      setEditingSignatureId(null);
+      setEditName('');
+      setEditRole('');
+      setEditType('');
+      alert('Signature updated successfully!');
+    } catch (error) {
+      alert('Failed to update signature');
+    } finally {
+      setIsAddingSignature(false);
+    }
+  };
+
+  const startEdit = (sig) => {
+    setEditingSignatureId(sig._id);
+    setEditName(sig.name);
+    setEditRole(sig.role || '');
+    setEditType(sig.type || 'Approved By');
+  };
+
+  const cancelEdit = () => {
+    setEditingSignatureId(null);
+    setEditName('');
+    setEditRole('');
+    setEditType('');
+  };
+
+  const handleRemoveSignature = async (signatureId) => {
+    if (!window.confirm('Are you sure you want to remove this signature?')) return;
+    
+    try {
+      await policyService.removeSignature(policy._id, signatureId);
+      await fetchSignatures();
+      alert('Signature removed successfully!');
+    } catch (error) {
+      alert('Failed to remove signature');
+    }
+  };
+
   const getPrintHTML = () => {
     const downloadDate = formatDate(new Date());
     const logoBase64 = logo;
     
-    // Generate signature cards HTML
+    // Generate signature cards HTML from policy signatureCards
     const signatureCardsHTML = policy.signatureCards?.map((card, index) => {
-      const cardType = card.type === 'Approved By' ? 'Approved By' : 'Customer';
-      const cardIcon = card.type === 'Approved By' ? '🛡️' : '👤';
-      
       return `
         <div class="approval-box">
-          <div class="label">${cardType}</div>
+          <div class="label">${card.type}</div>
           <div class="name">${card.name || 'Not specified'}</div>
           ${card.role ? `<div class="role">${card.role}</div>` : ''}
           <div class="signature-line"></div>
@@ -75,6 +186,21 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
         </div>
       `;
     }).join('');
+
+    // Generate custom signatures HTML
+    const customSignaturesHTML = signatures.map((sig) => {
+      return `
+        <div class="approval-box">
+          <div class="label">${sig.type}</div>
+          <div class="name">${sig.name}</div>
+          ${sig.role ? `<div class="role">${sig.role}</div>` : ''}
+          <div class="signature-line"></div>
+          <div class="download-date">Signed: ${formatDate(sig.signedAt)}</div>
+        </div>
+      `;
+    }).join('');
+
+    const allSignaturesHTML = signatureCardsHTML + customSignaturesHTML;
 
     return `
       <!DOCTYPE html>
@@ -297,7 +423,7 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
 
             .signature-grid {
               display: grid;
-              grid-template-columns: repeat(${Math.min(policy.signatureCards?.length || 1, 3)}, 1fr);
+              grid-template-columns: repeat(${Math.min(allSignaturesHTML ? 3 : 1, 3)}, 1fr);
               gap: 20px;
             }
 
@@ -490,13 +616,13 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
                   <div class="content-body">${policy.content || 'No content available.'}</div>
                 </div>
 
-                ${policy.signatureCards && policy.signatureCards.length > 0 ? `
+                ${allSignaturesHTML ? `
                   <div class="signature-section">
-                    <h3>3.0 ${policy.signatureCards.length === 1 ? 'Signature' : 'Signatures'}</h3>
-                    <p class="signature-subtitle">This document has been reviewed by the following:</p>
+                    <h3>3.0 Signatures</h3>
+                    <p class="signature-subtitle">This document has been signed by the following:</p>
                     
                     <div class="signature-grid">
-                      ${signatureCardsHTML}
+                      ${allSignaturesHTML}
                     </div>
                   </div>
                 ` : ''}
@@ -701,7 +827,7 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
                   </div>
 
                   {/* ============================================ */}
-                  {/* SIGNATURE CARDS - OPTIONAL */}
+                  {/* SIGNATURE CARDS - FROM POLICY CONFIGURATION */}
                   {/* ============================================ */}
                   {policy.signatureCards && policy.signatureCards.length > 0 && (
                     <div className="mt-6 pt-4 border-t-2 border-blue-900">
@@ -745,6 +871,50 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
                       </div>
                     </div>
                   )}
+
+                  {/* ============================================ */}
+                  {/* CUSTOM SIGNATURES - ADDED BY USERS */}
+                  {/* ============================================ */}
+                  {signatures.length > 0 && (
+                    <div className="mt-6 pt-4 border-t-2 border-blue-900">
+                      <h3 className="text-base font-bold text-blue-900 mb-1" style={{ fontFamily: 'Times New Roman, Times, serif' }}>
+                        {policy.signatureCards?.length > 0 ? '4.0' : '3.0'} Custom Signatures
+                      </h3>
+                      <p className="text-xs text-gray-500 italic mb-3">
+                        Additional signatures added by users:
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {signatures.map((sig, index) => (
+                          <div key={index} className="text-center p-3 border border-gray-300 bg-gray-50/90">
+                            <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+                              {sig.type === 'Approved By' ? (
+                                <span className="flex items-center justify-center gap-1">
+                                  <FaUserShield className="w-3 h-3" />
+                                  Approved By
+                                </span>
+                              ) : (
+                                <span className="flex items-center justify-center gap-1">
+                                  <FaUsers className="w-3 h-3" />
+                                  Customer
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-sm font-semibold text-gray-900 mt-1">
+                              {sig.name}
+                            </p>
+                            {sig.role && (
+                              <p className="text-xs text-gray-500 italic">{sig.role}</p>
+                            )}
+                            <div className="w-3/4 border-b border-gray-900 mx-auto mt-3 h-6"></div>
+                            <p className="text-xs text-gray-400 italic mt-1">
+                              Signed: {formatDate(sig.signedAt)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer */}
@@ -755,6 +925,146 @@ const PolicyViewModal = ({ policy, user, onClose, onDownload }) => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ============================================ */}
+        {/* SIGNATURE MANAGEMENT - FULL CRUD */}
+        {/* ============================================ */}
+        <div className="p-4 border-t border-gray-200 no-print">
+          <div className="bg-[#0A0A0F]/50 rounded-xl p-4 border border-[#00D4FF]/10">
+            <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+              <FaSignature className="text-[#00D4FF]" />
+              Manage Signatures
+            </h4>
+            
+            {/* Add Signature Form */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+              <input
+                type="text"
+                placeholder="Your Name *"
+                value={signatureName}
+                onChange={(e) => setSignatureName(e.target.value)}
+                className="px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+              />
+              <input
+                type="text"
+                placeholder="Role"
+                value={signatureRole}
+                onChange={(e) => setSignatureRole(e.target.value)}
+                className="px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={signatureType}
+                  onChange={(e) => setSignatureType(e.target.value)}
+                  className="flex-1 px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+                >
+                  <option value="Approved By">Approved By</option>
+                  <option value="Customer">Customer</option>
+                </select>
+                <button
+                  onClick={handleAddSignature}
+                  disabled={isAddingSignature}
+                  className="px-4 py-2 bg-[#00D4FF] text-white rounded-lg hover:bg-[#00D4FF]/80 transition-all disabled:opacity-50 text-sm flex items-center gap-1"
+                >
+                  {isAddingSignature ? <FaSpinner className="w-4 h-4 animate-spin" /> : <FaPlus className="w-4 h-4" />}
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* Existing Signatures with Edit/Delete */}
+            {signatures.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-gray-400">Your Signatures:</p>
+                {signatures.map((sig, index) => (
+                  <div key={index} className="bg-[#0A0A0F] p-3 rounded-lg border border-gray-700">
+                    {editingSignatureId === sig._id ? (
+                      // Edit Mode
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Name"
+                            className="px-3 py-1.5 bg-[#0A0A0F] text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={editRole}
+                            onChange={(e) => setEditRole(e.target.value)}
+                            placeholder="Role"
+                            className="px-3 py-1.5 bg-[#0A0A0F] text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+                          />
+                          <select
+                            value={editType}
+                            onChange={(e) => setEditType(e.target.value)}
+                            className="px-3 py-1.5 bg-[#0A0A0F] text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+                          >
+                            <option value="Approved By">Approved By</option>
+                            <option value="Customer">Customer</option>
+                          </select>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => handleEditSignature(sig._id)}
+                            disabled={isAddingSignature}
+                            className="px-3 py-1.5 bg-[#06D6A0] text-white rounded-lg hover:bg-[#06D6A0]/80 transition-all text-sm flex items-center gap-1"
+                          >
+                            {isAddingSignature ? <FaSpinner className="w-3 h-3 animate-spin" /> : <FaCheck className="w-3 h-3" />}
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-all text-sm flex items-center gap-1"
+                          >
+                            <FaTimesCircle className="w-3 h-3" />
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // View Mode
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-white font-medium">{sig.name}</p>
+                          <p className="text-xs text-gray-400">{sig.role}</p>
+                          <p className="text-xs text-gray-500">{new Date(sig.signedAt).toLocaleDateString()}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            sig.type === 'Approved By' ? 'bg-[#7C3AED]/20 text-[#7C3AED]' : 'bg-[#00D4FF]/20 text-[#00D4FF]'
+                          }`}>
+                            {sig.type}
+                          </span>
+                          {/* Only show edit/delete for user's own signatures */}
+                          {sig.signedBy?._id === user?._id && (
+                            <>
+                              <button
+                                onClick={() => startEdit(sig)}
+                                className="text-blue-400 hover:text-blue-300 transition-colors"
+                                title="Edit Signature"
+                              >
+                                <FaEdit className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleRemoveSignature(sig._id)}
+                                className="text-red-400 hover:text-red-300 transition-colors"
+                                title="Remove Signature"
+                              >
+                                <FaTrash className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

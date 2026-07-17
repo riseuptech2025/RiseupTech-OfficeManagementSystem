@@ -17,6 +17,8 @@ import { authService } from './services/api';
 import CustomerPage from './pages/Customers/CustomerPage';
 import FinancePage from './pages/Finance/FinancePage';
 import PolicyPage from './pages/Policy/PolicyPage';
+import ExpenditurePage from './pages/Expenditure/ExpenditurePage';
+
 
 const ProtectedRoute = ({ children }) => {
   if (!authService.isAuthenticated()) {
@@ -116,6 +118,15 @@ function App() {
   element={
     <ProtectedRoute>
       <CustomerPage />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/expenditure"
+  element={
+    <ProtectedRoute>
+      <ExpenditurePage />
     </ProtectedRoute>
   }
 />

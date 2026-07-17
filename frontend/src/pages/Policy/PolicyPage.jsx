@@ -26,7 +26,6 @@ import {
   FaFilePdf,
   FaSignature,
   FaClock,
-  FaTag,
   FaCalendarAlt,
   FaBars,
   FaBell,
@@ -39,7 +38,9 @@ import {
   FaHistory,
   FaCog,
   FaMoneyBillWave,
-  FaCalendar
+  FaCalendar,
+  FaUserEdit,
+  FaUserCheck
 } from 'react-icons/fa';
 import { authService } from '../../services/api';
 import { policyService } from '../../services/policyService';
@@ -47,6 +48,7 @@ import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import PolicyModal from '../../components/Policy/PolicyModal';
 import PolicyViewModal from '../../components/Policy/PolicyViewModal';
+import SignatureManagementModal from '../../components/Policy/SignatureManagementModal';
 
 const PolicyPage = () => {
   const navigate = useNavigate();
@@ -60,7 +62,9 @@ const PolicyPage = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState(null);
+  const [selectedPolicyForSignature, setSelectedPolicyForSignature] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -91,8 +95,8 @@ const PolicyPage = () => {
     navigate('/login');
   };
 
+  // Check if user is Admin (can create, edit, delete)
   const isAdmin = ['super_admin', 'admin', 'ceo', 'founder'].includes(user?.role);
-  const isSuperAdmin = ['super_admin'].includes(user?.role);
 
   const getRoleIcon = (role) => {
     switch(role) {
@@ -115,16 +119,6 @@ const PolicyPage = () => {
     return colors[status] || colors['Draft'];
   };
 
-  const getPriorityBadge = (priority) => {
-    const colors = {
-      'Low': 'text-green-400',
-      'Medium': 'text-yellow-400',
-      'High': 'text-orange-400',
-      'Critical': 'text-red-400'
-    };
-    return colors[priority] || 'text-gray-400';
-  };
-
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -136,6 +130,11 @@ const PolicyPage = () => {
   const handleViewPolicy = async (policy) => {
     setSelectedPolicy(policy);
     setShowViewModal(true);
+  };
+
+  const handleOpenSignatureModal = (policy) => {
+    setSelectedPolicyForSignature(policy);
+    setShowSignatureModal(true);
   };
 
   const handleDownloadPolicy = async (policyId) => {
@@ -162,6 +161,14 @@ const PolicyPage = () => {
       setError('Failed to delete policy');
       setTimeout(() => setError(''), 3000);
     }
+  };
+
+  const handleSignatureSuccess = () => {
+    setShowSignatureModal(false);
+    setSelectedPolicyForSignature(null);
+    setSuccess('Signature updated successfully!');
+    fetchPolicies();
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const filteredPolicies = policies.filter(policy => {
@@ -257,7 +264,7 @@ const PolicyPage = () => {
                 <FaFileAlt className="text-[#00D4FF]" />
                 Policy Center
               </h1>
-              <p className="text-gray-400 mt-1">Manage company policies and documentation</p>
+              <p className="text-gray-400 mt-1">View and manage company policies</p>
             </div>
             {isAdmin && (
               <button
@@ -363,20 +370,11 @@ const PolicyPage = () => {
                       <span className="text-xs bg-[#0A0A0F] text-gray-400 px-2 py-0.5 rounded">
                         {policy.category}
                       </span>
-                    </div>
-                    {/* ============================================ */}
-                    {/* FIXED: appliesTo is now a string, not an array */}
-                    {/* ============================================ */}
-                    <div className="flex flex-wrap gap-1">
                       <span className="text-xs bg-[#0A0A0F] text-gray-400 px-2 py-0.5 rounded">
                         Applies To: {policy.appliesTo || 'All'}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <FaCalendarAlt className="w-3 h-3" />
-                        {formatDate(policy.effectiveDate)}
-                      </span>
                       <span className="flex items-center gap-1">
                         <FaEye className="w-3 h-3" />
                         {policy.viewCount || 0}
@@ -385,11 +383,15 @@ const PolicyPage = () => {
                         <FaDownload className="w-3 h-3" />
                         {policy.downloadCount || 0}
                       </span>
+                      <span className="flex items-center gap-1">
+                        <FaSignature className="w-3 h-3" />
+                        {policy.signatureCards?.length || 0} signatures
+                      </span>
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-3 border-t border-[#00D4FF]/10">
+                  <div className="flex flex-wrap gap-2 pt-3 border-t border-[#00D4FF]/10">
                     <button
                       onClick={() => handleViewPolicy(policy)}
                       className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-[#00D4FF]/10 text-[#00D4FF] rounded-lg hover:bg-[#00D4FF]/20 transition-all text-sm"
@@ -404,27 +406,40 @@ const PolicyPage = () => {
                       <FaDownload className="w-3 h-3" />
                       Download
                     </button>
+                    
+                    {/* ============================================ */}
+                    {/* EDIT SIGNATURE BUTTON - ALL USERS */}
+                    {/* ============================================ */}
+                    <button
+                      onClick={() => handleOpenSignatureModal(policy)}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-[#F59E0B]/10 text-[#F59E0B] rounded-lg hover:bg-[#F59E0B]/20 transition-all text-sm"
+                    >
+                      <FaSignature className="w-3 h-3" />
+                      Signatures
+                    </button>
+                    
+                    {/* Admin Actions */}
                     {isAdmin && (
-                      <button
-                        onClick={() => {
-                          setIsEditing(true);
-                          setSelectedPolicy(policy);
-                          setShowCreateModal(true);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-[#F59E0B]/10 text-[#F59E0B] rounded-lg hover:bg-[#F59E0B]/20 transition-all text-sm"
-                      >
-                        <FaEdit className="w-3 h-3" />
-                        Edit
-                      </button>
-                    )}
-                    {isSuperAdmin && (
-                      <button
-                        onClick={() => handleDeletePolicy(policy._id)}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-all text-sm"
-                      >
-                        <FaTrash className="w-3 h-3" />
-                        Delete
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setIsEditing(true);
+                            setSelectedPolicy(policy);
+                            setShowCreateModal(true);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-[#7C3AED]/10 text-[#7C3AED] rounded-lg hover:bg-[#7C3AED]/20 transition-all text-sm"
+                        >
+                          <FaEdit className="w-3 h-3" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeletePolicy(policy._id)}
+                          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-all text-sm"
+                        >
+                          <FaTrash className="w-3 h-3" />
+                          Delete
+                        </button>
+                      </>
                     )}
                   </div>
                 </motion.div>
@@ -469,6 +484,23 @@ const PolicyPage = () => {
               setSelectedPolicy(null);
             }}
             onDownload={() => handleDownloadPolicy(selectedPolicy._id)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ============================================ */}
+      {/* SIGNATURE MANAGEMENT MODAL - ALL USERS */}
+      {/* ============================================ */}
+      <AnimatePresence>
+        {showSignatureModal && selectedPolicyForSignature && (
+          <SignatureManagementModal
+            policy={selectedPolicyForSignature}
+            user={user}
+            onClose={() => {
+              setShowSignatureModal(false);
+              setSelectedPolicyForSignature(null);
+            }}
+            onSuccess={handleSignatureSuccess}
           />
         )}
       </AnimatePresence>

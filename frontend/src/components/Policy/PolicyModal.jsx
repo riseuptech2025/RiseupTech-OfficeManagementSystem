@@ -7,8 +7,6 @@ import {
   FaFileAlt,
   FaSave,
   FaInfoCircle,
-  FaPlus,
-  FaTrash,
   FaUser,
   FaUserTie,
   FaUserCog,
@@ -17,8 +15,7 @@ import {
   FaSignature,
   FaUsers,
   FaCheckCircle,
-  FaUserCheck,
-  FaMinusCircle
+  FaUserCheck
 } from 'react-icons/fa';
 import { policyService } from '../../services/policyService';
 
@@ -27,7 +24,6 @@ const PolicyModal = ({ isEditing, policy, onClose, onSuccess, user }) => {
   const [error, setError] = useState('');
   const [generatedId, setGeneratedId] = useState(policy?.policyId || '');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [availableEmployees, setAvailableEmployees] = useState({});
   const [formData, setFormData] = useState({
     policyName: policy?.policyName || '',
     category: policy?.category || 'Employee Handbook',
@@ -36,8 +32,7 @@ const PolicyModal = ({ isEditing, policy, onClose, onSuccess, user }) => {
     description: policy?.description || '',
     content: policy?.content || '',
     version: policy?.version || '1.0',
-    status: policy?.status || 'Draft',
-    signatureCards: policy?.signatureCards || []
+    status: policy?.status || 'Draft'
   });
 
   // Category codes mapping
@@ -106,99 +101,19 @@ const PolicyModal = ({ isEditing, policy, onClose, onSuccess, user }) => {
     }
   };
 
-  // ============================================
-  // Signature Cards Management (ALL OPTIONAL)
-  // ============================================
-  const addSignatureCard = (type = 'Customer') => {
-    const newCard = {
-      type: type,
-      name: '',
-      role: '',
-      showDate: true
-    };
-    if (type === 'Approved By') {
-      newCard.userId = '';
-    }
-    setFormData(prev => ({
-      ...prev,
-      signatureCards: [...prev.signatureCards, newCard]
-    }));
-  };
-
-  const removeSignatureCard = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      signatureCards: prev.signatureCards.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateSignatureCard = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      signatureCards: prev.signatureCards.map((card, i) => 
-        i === index ? { ...card, [field]: value } : card
-      )
-    }));
-  };
-
-  const updateApprovedByEmployee = (index, employeeId) => {
-    const employees = availableEmployees[formData.approvalAuthority] || [];
-    const selected = employees.find(emp => emp._id === employeeId);
-    if (selected) {
-      updateSignatureCard(index, 'name', selected.name);
-      updateSignatureCard(index, 'role', selected.role);
-      updateSignatureCard(index, 'userId', selected._id);
-    } else {
-      updateSignatureCard(index, 'name', '');
-      updateSignatureCard(index, 'role', '');
-      updateSignatureCard(index, 'userId', null);
-    }
-  };
-
-  // Fetch employees when approval authority changes
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      if (formData.approvalAuthority) {
-        try {
-          const response = await policyService.getEmployeesByRole(formData.approvalAuthority);
-          if (response.data) {
-            setAvailableEmployees(prev => ({
-              ...prev,
-              [formData.approvalAuthority]: response.data
-            }));
-          }
-        } catch (error) {
-          console.error('Failed to fetch employees:', error);
-        }
-      }
-    };
-    fetchEmployees();
-  }, [formData.approvalAuthority]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // ============================================
-      // NO VALIDATION - ALL SIGNATURES ARE OPTIONAL
-      // Simply filter out completely empty signature cards
-      // ============================================
       const data = {
         ...formData,
         createdBy: user.id,
-        createdByName: user.name
+        createdByName: user.name,
+        // No signature cards - they are managed separately
+        signatureCards: []
       };
-
-      // Filter out completely empty signature cards (no name, no userId)
-      data.signatureCards = data.signatureCards.filter(card => {
-        // Keep if it has any valid data
-        if (card.type === 'Approved By') {
-          return card.userId || (card.name && card.name.trim() !== '');
-        }
-        return card.name && card.name.trim() !== '';
-      });
 
       if (isEditing) {
         await policyService.updatePolicy(policy._id, data);
@@ -395,145 +310,17 @@ const PolicyModal = ({ isEditing, policy, onClose, onSuccess, user }) => {
           </div>
 
           {/* ============================================ */}
-          {/* SIGNATURE CARDS SECTION - ALL OPTIONAL */}
+          {/* SIGNATURE CARDS SECTION REMOVED */}
+          {/* Signatures are now managed separately via the */}
+          {/* Signature Management button on the policy card */}
           {/* ============================================ */}
-          <div className="bg-[#0A0A0F]/50 rounded-xl p-4">
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="text-sm font-medium text-gray-400">Signature Cards (Optional)</h4>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => addSignatureCard('Approved By')}
-                  className="flex items-center gap-1 px-3 py-1 bg-[#7C3AED]/10 text-[#7C3AED] rounded-lg hover:bg-[#7C3AED]/20 transition-all text-sm"
-                >
-                  <FaUserShield className="w-3 h-3" />
-                  Add Approved By
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addSignatureCard('Customer')}
-                  className="flex items-center gap-1 px-3 py-1 bg-[#00D4FF]/10 text-[#00D4FF] rounded-lg hover:bg-[#00D4FF]/20 transition-all text-sm"
-                >
-                  <FaPlus className="w-3 h-3" />
-                  Add Customer
-                </button>
-              </div>
+          <div className="bg-[#0A0A0F]/50 rounded-xl p-4 border border-dashed border-[#00D4FF]/20">
+            <div className="flex items-center gap-2 text-gray-400 text-sm">
+              <FaSignature className="text-[#00D4FF]" />
+              <span>Signatures are managed separately from the policy card</span>
             </div>
-            
-            <div className="space-y-3">
-              {formData.signatureCards.map((card, index) => (
-                <div key={index} className="grid grid-cols-12 gap-2 items-end bg-[#0A0A0F] p-3 rounded-lg border border-[#00D4FF]/10">
-                  <div className="col-span-12 text-xs text-gray-500 mb-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {card.type === 'Approved By' ? (
-                        <>
-                          <FaUserShield className="text-[#7C3AED] w-3 h-3" />
-                          <span className="text-[#7C3AED]">Approved By</span>
-                        </>
-                      ) : (
-                        <>
-                          <FaUsers className="text-[#F59E0B] w-3 h-3" />
-                          <span className="text-[#F59E0B]">Customer Signature</span>
-                        </>
-                      )}
-                      <span className="text-xs text-gray-500">(Optional)</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeSignatureCard(index)}
-                      className="text-red-400 hover:text-red-300 transition-colors text-xs flex items-center gap-1"
-                    >
-                      <FaTrash className="w-3 h-3" />
-                      Remove
-                    </button>
-                  </div>
-
-                  {card.type === 'Approved By' ? (
-                    <>
-                      <div className="col-span-5">
-                        <select
-                          value={card.userId || ''}
-                          onChange={(e) => updateApprovedByEmployee(index, e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C3AED] text-sm"
-                        >
-                          <option value="">Select Employee (Optional)</option>
-                          {(availableEmployees[formData.approvalAuthority] || []).map(emp => (
-                            <option key={emp._id} value={emp._id}>
-                              {emp.name} ({emp.role})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-span-4">
-                        <input
-                          type="text"
-                          placeholder="Name (Optional)"
-                          value={card.name}
-                          onChange={(e) => updateSignatureCard(index, 'name', e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C3AED] text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={card.showDate !== false}
-                            onChange={(e) => updateSignatureCard(index, 'showDate', e.target.checked)}
-                            className="w-4 h-4 accent-[#7C3AED]"
-                          />
-                          <span className="text-xs text-gray-400">Show Date</span>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    // Customer Signature Card
-                    <>
-                      <div className="col-span-5">
-                        <input
-                          type="text"
-                          placeholder="Customer Name (Optional)"
-                          value={card.name}
-                          onChange={(e) => updateSignatureCard(index, 'name', e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
-                        />
-                      </div>
-                      <div className="col-span-4">
-                        <input
-                          type="text"
-                          placeholder="Role (Optional)"
-                          value={card.role || ''}
-                          onChange={(e) => updateSignatureCard(index, 'role', e.target.value)}
-                          className="w-full px-3 py-1.5 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={card.showDate !== false}
-                            onChange={(e) => updateSignatureCard(index, 'showDate', e.target.checked)}
-                            className="w-4 h-4 accent-[#00D4FF]"
-                          />
-                          <span className="text-xs text-gray-400">Show Date</span>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-
-              {formData.signatureCards.length === 0 && (
-                <div className="text-center py-4 text-gray-500 text-sm border border-dashed border-gray-700 rounded-lg">
-                  <p className="text-gray-400">No signature cards added</p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Click "Add Approved By" or "Add Customer" to add optional signature cards
-                  </p>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              <FaInfoCircle className="inline w-3 h-3 mr-1" />
-              All signature cards are optional. You can add or remove them as needed.
+            <p className="text-xs text-gray-500 mt-1">
+              Click the "Signatures" button on any policy to add or manage signatures
             </p>
           </div>
 
