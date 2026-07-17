@@ -37,7 +37,7 @@ const loginUser = async (req, res) => {
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
-        message: 'Your account has been deactivated. Please contact admin.',
+        message: '🌟 Welcome to Your New Journey!  Congratulations on becoming a part of **Riseup-Tech Software Company**. This is the beginning of an exciting journey filled with opportunities to learn, grow, and make a meaningful impact. We believe in your potential and look forward to celebrating your achievements together.Welcome aboard, and we wish you every success in your career with Riseup-Tech!',
       });
     }
 

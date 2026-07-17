@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -11,15 +12,16 @@ const apiRoutes = require('./routes/api');
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
 const profileRoutes = require('./routes/profile');
-const errorHandler = require('./middleware/errorHandler');
 const leaveRoutes = require('./routes/leaveRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const taskRoutes = require('./routes/taskRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
 const receiptRoutes = require('./routes/receiptRoutes');
 const customerRoutes = require('./routes/customerRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const salaryRoutes = require('./routes/salaryRoutes');
 const financeRoutes = require('./routes/financeRoutes');
+const policyRoutes = require('./routes/policyRoutes'); // ADD THIS
+const errorHandler = require('./middleware/errorHandler');
 
 // Connect to MongoDB
 connectDB();
@@ -30,8 +32,6 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(helmet());
 app.use(compression());
-
-// Increase payload size limits for file uploads
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ 
   extended: true, 
@@ -41,7 +41,7 @@ app.use(express.urlencoded({
 
 app.use(morgan('dev'));
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'https://riseup-tech-office-management-syste-lemon.vercel.app', 'https://workspace.riseuptech.com.np'],
+  origin: ['http://localhost:5173', 'http://localhost:5174'],
   credentials: true,
 }));
 
@@ -53,11 +53,12 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/tasks', taskRoutes);
-app.use('/api/notifications', notificationRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/salaries', salaryRoutes);
 app.use('/api/finance', financeRoutes);
+app.use('/api/policies', policyRoutes); // ADD THIS
 
 // Error handling middleware
 app.use(errorHandler);

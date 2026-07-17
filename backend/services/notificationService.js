@@ -318,8 +318,8 @@ class NotificationService {
 
   // Create notification for user creation
   async notifyUserCreation(newUser, adminName) {
-    const title = `Welcome to RiseUp-Tech!`;
-    const message = `Your account has been created by ${adminName}. You can now login with your credentials.`;
+    const title = `🌟 Welcome to RiseUp-Tech!`;
+    const message = ` Congratulations on becoming a part of **Riseup-Tech Software Company**. This is the beginning of an exciting journey filled with opportunities to learn, grow, and make a meaningful impact. We believe in your potential and look forward to celebrating your achievements together.Welcome aboard, and we wish you every success in your career with Riseup-Tech!`;
     const type = 'user_created';
 
     await this.createNotification({
