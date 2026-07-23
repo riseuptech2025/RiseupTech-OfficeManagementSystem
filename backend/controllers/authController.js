@@ -1,6 +1,7 @@
 // controllers/authController.js
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -16,6 +17,8 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log('🔐 Login attempt:', { email, passwordLength: password?.length });
+
     // Validate email & password
     if (!email || !password) {
       return res.status(400).json({
@@ -28,11 +31,21 @@ const loginUser = async (req, res) => {
     const user = await User.findOne({ email }).select('+password');
     
     if (!user) {
+      console.log('❌ User not found:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
       });
     }
+
+    console.log('✅ User found:', { 
+      id: user._id, 
+      name: user.name, 
+      email: user.email,
+      role: user.role,
+      hasPassword: !!user.password,
+      passwordLength: user.password?.length
+    });
 
     // Check if user is active
     if (!user.isActive) {
@@ -42,9 +55,11 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Check if password matches
-    const isPasswordMatch = await user.matchPassword(password);
+    // Check if password matches using bcrypt directly
+    const isPasswordMatch = await bcrypt.compare(password, user.password);
     
+    console.log('🔐 Password match result:', isPasswordMatch);
+
     if (!isPasswordMatch) {
       return res.status(401).json({
         success: false,
@@ -56,7 +71,6 @@ const loginUser = async (req, res) => {
     await User.findByIdAndUpdate(user._id, { 
       lastLogin: new Date() 
     });
-
 
     // Generate token
     const token = generateToken(user._id);
@@ -75,7 +89,7 @@ const loginUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Login failed',

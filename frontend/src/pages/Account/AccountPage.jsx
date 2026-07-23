@@ -686,7 +686,7 @@ const AccountPage = () => {
                       )}
                       
                       {/* Mark as Paid - Only for issued receipts */}
-                      {receipt.status === 'issued' && (
+                      {/* {receipt.status === 'issued' && (
                         <button
                           onClick={() => handleMarkAsPaid(receipt._id)}
                           className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-all"
@@ -694,7 +694,7 @@ const AccountPage = () => {
                         >
                           <FaCheckCircle className="w-4 h-4" />
                         </button>
-                      )}
+                      )} */}
                       
                       {/* Cancel Receipt - Paid receipts cannot be cancelled */}
                       {receipt.status !== 'cancelled' && receipt.status !== 'paid' && (

@@ -22,28 +22,11 @@ const salaryRoutes = require('./routes/salaryRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 const policyRoutes = require('./routes/policyRoutes');
 const expenditureRoutes = require('./routes/expenditureRoutes');
-// const ssoRoutes = require('./routes/ssoRoutes');
-// const { connectRedis, testRedisConnection } = require('./config/redis');
+const passwordManagerRoutes = require('./routes/passwordManagerRoutes');
 
 // Connect to MongoDB
 const connectDB = require('./config/database');
 connectDB();
-
-
-// const startRedis = async () => {
-//   await connectRedis();
-//   await testRedisConnection();
-// };
-
-// const initRedis = async () => {
-//   try {
-//     await connectRedis();
-//     await testRedisConnection();
-//   } catch (error) {
-//     console.log('⚠️ Redis initialization warning:', error.message);
-//   }
-// };
-
 
 
 
@@ -121,7 +104,7 @@ app.use('/api/salaries', salaryRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/policies', policyRoutes);
 app.use('/api/expenditures', expenditureRoutes);
-// app.use('/api/sso', ssoRoutes);
+app.use('/api/passwords', passwordManagerRoutes);
 
 // Error handling middleware
 const errorHandler = require('./middleware/errorHandler');

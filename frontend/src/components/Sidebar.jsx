@@ -15,6 +15,7 @@ import {
   FaCalendarAlt,
   FaTasks,
   FaFileAlt,
+  FaLock,
   FaHistory
 } from 'react-icons/fa';
 import CompanyLogo from './CompanyLogo';
@@ -88,6 +89,7 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onLogout }) => {
     { id: 'tasks', label: 'Tasks', icon: FaTasks, path: '/tasks' },
     { id: 'expenditure', label: 'Expenditure', icon: FaMoneyBillWave, path: '/expenditure' },
     { id: 'activity', label: 'Activity', icon: FaHistory, path: '/activity' },
+    { id: 'passwords', label: 'Password Manager', icon: FaLock, path: '/passwords' },
      { id: 'account', label: 'Account', icon: FaReceipt, path: '/account' },
      { id: 'customers', label: 'Customers', icon: FaUsers, path: '/customers' }, 
      { id: 'policy', label: 'Policy Center', icon: FaFileAlt, path: '/policy' },

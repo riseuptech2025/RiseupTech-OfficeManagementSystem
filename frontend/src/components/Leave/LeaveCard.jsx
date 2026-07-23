@@ -1,3 +1,4 @@
+// components/Leave/LeaveCard.jsx
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -51,19 +52,123 @@ const LeaveCard = ({ leave, onStatusUpdate, onComment }) => {
     return colors[type] || 'text-gray-400';
   };
 
-  const canApprove = leave.approvers?.some(approver => 
-    approver._id === currentUser?._id
-  ) || ['super_admin', 'ceo', 'founder'].includes(currentUser?.role);
+  // ============================================
+  // FIXED: Safe access for currentUser
+  // ============================================
+  const getCurrentUserId = () => {
+    return currentUser?._id || null;
+  };
 
-  const canCancel = leave.employee._id === currentUser?._id && leave.status === 'pending';
+  const getCurrentUserRole = () => {
+    return currentUser?.role || '';
+  };
+
+  // ============================================
+  // FIXED: Safe access for employee
+  // ============================================
+  const getEmployeeId = () => {
+    return leave?.employee?._id || leave?.employeeId || null;
+  };
+
+  const getEmployeeName = () => {
+    return leave?.employee?.name || leave?.employeeName || 'Unknown Employee';
+  };
+
+  const getEmployeeRole = () => {
+    return leave?.employee?.role || leave?.employeeRole || 'Staff';
+  };
+
+  const getEmployeeProfilePicture = () => {
+    return leave?.employee?.profilePicture || null;
+  };
+
+  // ============================================
+  // FIXED: Check if user can approve
+  // ============================================
+  const canApprove = () => {
+    const userRole = getCurrentUserRole();
+    const userId = getCurrentUserId();
+    
+    // Check if user is in approvers list
+    const isApprover = leave?.approvers?.some(approver => 
+      approver._id === userId
+    );
+    
+    // Check if user is super admin, ceo, or founder
+    const isSuperAdmin = ['super_admin', 'ceo', 'founder'].includes(userRole);
+    
+    return isApprover || isSuperAdmin;
+  };
+
+  // ============================================
+  // FIXED: Check if user can cancel
+  // ============================================
+  const canCancel = () => {
+    const userId = getCurrentUserId();
+    const employeeId = getEmployeeId();
+    return employeeId === userId && leave?.status === 'pending';
+  };
 
   const formatDate = (date) => {
+    if (!date) return 'N/A';
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
   };
+
+  // ============================================
+  // FIXED: Get initials from name
+  // ============================================
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name.charAt(0).toUpperCase();
+  };
+
+  // ============================================
+  // FIXED: Render approvers safely
+  // ============================================
+  const renderApprovers = () => {
+    if (!leave?.approvers || leave.approvers.length === 0) {
+      return null;
+    }
+    return (
+      <div className="flex flex-wrap gap-1 mb-3">
+        <span className="text-xs text-gray-500 mr-1">Approvers:</span>
+        {leave.approvers.map((approver, idx) => (
+          <span key={idx} className="text-xs text-gray-400 bg-[#0A0A0F]/50 px-2 py-0.5 rounded">
+            {approver.name || 'Unknown'}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  // ============================================
+  // FIXED: Render comments safely
+  // ============================================
+  const renderComments = () => {
+    if (!leave?.comments || leave.comments.length === 0) {
+      return <p className="text-xs text-gray-500">No comments yet</p>;
+    }
+    return leave.comments.map((cmt, idx) => (
+      <div key={idx} className="bg-[#0A0A0F] rounded-lg p-3">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-[#00D4FF]">{cmt.userName || 'Unknown'}</span>
+            <span className="text-xs text-gray-500">({cmt.userRole || 'Staff'})</span>
+          </div>
+          <span className="text-xs text-gray-500">{cmt.createdAt ? new Date(cmt.createdAt).toLocaleDateString() : 'N/A'}</span>
+        </div>
+        <p className="text-sm text-gray-300 mt-1">{cmt.comment}</p>
+      </div>
+    ));
+  };
+
+  const isPending = leave?.status === 'pending';
+  const showApproveButtons = canApprove() && isPending;
+  const showCancelButton = canCancel();
 
   return (
     <motion.div
@@ -75,41 +180,41 @@ const LeaveCard = ({ leave, onStatusUpdate, onComment }) => {
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#00D4FF] to-[#7C3AED] flex items-center justify-center text-white font-bold overflow-hidden">
-            {leave.employee?.profilePicture ? (
-              <img src={leave.employee.profilePicture} alt={leave.employeeName} className="w-full h-full object-cover" />
+            {getEmployeeProfilePicture() ? (
+              <img src={getEmployeeProfilePicture()} alt={getEmployeeName()} className="w-full h-full object-cover" />
             ) : (
-              leave.employeeName?.charAt(0).toUpperCase()
+              getInitials(getEmployeeName())
             )}
           </div>
           <div>
-            <h3 className="text-white font-semibold">{leave.employeeName}</h3>
-            <p className="text-xs text-gray-400">{leave.employeeRole}</p>
+            <h3 className="text-white font-semibold">{getEmployeeName()}</h3>
+            <p className="text-xs text-gray-400">{getEmployeeRole()}</p>
           </div>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(leave.status)}`}>
-          {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(leave?.status)}`}>
+          {leave?.status ? leave.status.charAt(0).toUpperCase() + leave.status.slice(1) : 'Unknown'}
         </span>
       </div>
 
       {/* Leave Details */}
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-sm">
-          <FaCalendarAlt className={`${getTypeColor(leave.type)} w-4 h-4`} />
-          <span className="text-gray-300">{getTypeLabel(leave.type)}</span>
+          <FaCalendarAlt className={`${getTypeColor(leave?.type)} w-4 h-4`} />
+          <span className="text-gray-300">{getTypeLabel(leave?.type)}</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-300">
           <FaClock className="text-[#00D4FF] w-4 h-4" />
-          <span>{formatDate(leave.startDate)} - {formatDate(leave.endDate)}</span>
+          <span>{formatDate(leave?.startDate)} - {formatDate(leave?.endDate)}</span>
         </div>
         <div className="text-sm text-gray-300">
-          <span className="text-[#00D4FF]">{leave.daysCount}</span> days
+          <span className="text-[#00D4FF]">{leave?.daysCount || 0}</span> days
         </div>
-        {leave.reason && (
+        {leave?.reason && (
           <p className="text-sm text-gray-400 mt-2 bg-[#0A0A0F]/50 p-3 rounded-lg">
             {leave.reason}
           </p>
         )}
-        {leave.rejectionReason && leave.status === 'rejected' && (
+        {leave?.rejectionReason && leave?.status === 'rejected' && (
           <p className="text-sm text-red-400 mt-2 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
             <span className="font-medium">Rejection Reason:</span> {leave.rejectionReason}
           </p>
@@ -117,47 +222,40 @@ const LeaveCard = ({ leave, onStatusUpdate, onComment }) => {
       </div>
 
       {/* Approvers */}
-      {leave.approvers && leave.approvers.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          <span className="text-xs text-gray-500 mr-1">Approvers:</span>
-          {leave.approvers.map((approver, idx) => (
-            <span key={idx} className="text-xs text-gray-400 bg-[#0A0A0F]/50 px-2 py-0.5 rounded">
-              {approver.name}
-            </span>
-          ))}
-        </div>
-      )}
+      {renderApprovers()}
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        {canApprove && leave.status === 'pending' && (
-          <>
+      {(showApproveButtons || showCancelButton) && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {showApproveButtons && (
+            <>
+              <button
+                onClick={() => onStatusUpdate(leave._id, 'approved')}
+                className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-colors text-sm"
+              >
+                <FaCheck className="w-3 h-3" />
+                Approve
+              </button>
+              <button
+                onClick={() => setShowRejectReason(true)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm"
+              >
+                <FaTimes className="w-3 h-3" />
+                Reject
+              </button>
+            </>
+          )}
+          {showCancelButton && (
             <button
-              onClick={() => onStatusUpdate(leave._id, 'approved')}
-              className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-colors text-sm"
-            >
-              <FaCheck className="w-3 h-3" />
-              Approve
-            </button>
-            <button
-              onClick={() => setShowRejectReason(true)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm"
+              onClick={() => onStatusUpdate(leave._id, 'cancelled')}
+              className="flex items-center gap-1 px-3 py-1.5 bg-gray-500/10 text-gray-400 rounded-lg hover:bg-gray-500/20 transition-colors text-sm"
             >
               <FaTimes className="w-3 h-3" />
-              Reject
+              Cancel
             </button>
-          </>
-        )}
-        {canCancel && (
-          <button
-            onClick={() => onStatusUpdate(leave._id, 'cancelled')}
-            className="flex items-center gap-1 px-3 py-1.5 bg-gray-500/10 text-gray-400 rounded-lg hover:bg-gray-500/20 transition-colors text-sm"
-          >
-            <FaTimes className="w-3 h-3" />
-            Cancel
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Comments */}
       <button
@@ -165,23 +263,12 @@ const LeaveCard = ({ leave, onStatusUpdate, onComment }) => {
         className="text-sm text-[#00D4FF] hover:text-[#00D4FF]/80 transition-colors flex items-center gap-1"
       >
         <FaComment className="w-3 h-3" />
-        {leave.comments?.length || 0} Comments
+        {leave?.comments?.length || 0} Comments
       </button>
 
       {showComment && (
         <div className="mt-3 space-y-2">
-          {leave.comments?.map((cmt, idx) => (
-            <div key={idx} className="bg-[#0A0A0F] rounded-lg p-3">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-[#00D4FF]">{cmt.userName}</span>
-                  <span className="text-xs text-gray-500">({cmt.userRole})</span>
-                </div>
-                <span className="text-xs text-gray-500">{new Date(cmt.createdAt).toLocaleDateString()}</span>
-              </div>
-              <p className="text-sm text-gray-300 mt-1">{cmt.comment}</p>
-            </div>
-          ))}
+          {renderComments()}
           <div className="flex gap-2 mt-2">
             <input
               type="text"
