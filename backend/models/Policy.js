@@ -5,7 +5,7 @@ const policySchema = new mongoose.Schema({
   policyId: {
     type: String,
     required: true,
-    unique: true
+    unique: true  // This creates the index - NO duplicate index at bottom
   },
   policyName: {
     type: String,
@@ -288,12 +288,12 @@ policySchema.statics.getActiveEmployeesByRole = async function(role) {
 };
 
 // ============================================
-// Indexes
+// Indexes - NO DUPLICATE policyId index
 // ============================================
-policySchema.index({ policyId: 1 }, { unique: true });
 policySchema.index({ policyName: 1 });
 policySchema.index({ category: 1 });
 policySchema.index({ status: 1 });
 policySchema.index({ appliesTo: 1 });
+// policyId index is already created by unique: true in the schema definition above
 
 module.exports = mongoose.model('Policy', policySchema);

@@ -53,6 +53,7 @@ import Navbar from '../components/Navbar';
 import { financeService } from '../services/financeService';
 import { receiptService } from '../services/receiptService';
 import { notificationService } from '../services/notificationService';
+// import SSODomainSwitcher from '../components/SSO/SSODomainSwitcher';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -830,6 +831,11 @@ const HomePage = () => {
                       </div>
                     )}
                   </motion.div>
+
+                  {/* ============================================ */}
+                  {/* ===== SSO DOMAIN SWITCHER - ADDED HERE ===== */}
+                  {/* ============================================ */}
+                  {/* <SSODomainSwitcher user={user} /> */}
                 </div>
               </div>
 

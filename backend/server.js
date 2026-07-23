@@ -1,4 +1,4 @@
-// server.js
+// server.js (Main Backend - Port 5000)
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -7,7 +7,7 @@ const morgan = require('morgan');
 const compression = require('compression');
 require('dotenv').config();
 
-const connectDB = require('./config/database');
+// Import routes
 const apiRoutes = require('./routes/api');
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
@@ -20,18 +20,78 @@ const customerRoutes = require('./routes/customerRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const salaryRoutes = require('./routes/salaryRoutes');
 const financeRoutes = require('./routes/financeRoutes');
-const policyRoutes = require('./routes/policyRoutes'); // ADD THIS
-const errorHandler = require('./middleware/errorHandler');
+const policyRoutes = require('./routes/policyRoutes');
 const expenditureRoutes = require('./routes/expenditureRoutes');
+// const ssoRoutes = require('./routes/ssoRoutes');
+// const { connectRedis, testRedisConnection } = require('./config/redis');
 
 // Connect to MongoDB
+const connectDB = require('./config/database');
 connectDB();
+
+
+// const startRedis = async () => {
+//   await connectRedis();
+//   await testRedisConnection();
+// };
+
+// const initRedis = async () => {
+//   try {
+//     await connectRedis();
+//     await testRedisConnection();
+//   } catch (error) {
+//     console.log('⚠️ Redis initialization warning:', error.message);
+//   }
+// };
+
+
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ============================================
+// FIXED: CORS Configuration - Allow multiple origins
+// ============================================
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://192.168.18.249:5173',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'https://riseuptech.com',
+  process.env.FRONTEND_URL,
+  process.env.SSO_FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.warn('CORS blocked for origin:', origin);
+      callback(null, true); // Allow all in development
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
+}));
+
+// ============================================
+// Trust proxy for secure cookies
+// ============================================
+app.set('trust proxy', 1);
+
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ 
@@ -39,12 +99,12 @@ app.use(express.urlencoded({
   limit: '50mb',
   parameterLimit: 100000
 }));
-
 app.use(morgan('dev'));
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
-  credentials: true,
-}));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
 // Routes
 app.use('/api', apiRoutes);
@@ -59,14 +119,18 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/salaries', salaryRoutes);
 app.use('/api/finance', financeRoutes);
-app.use('/api/policies', policyRoutes); // ADD THIS
+app.use('/api/policies', policyRoutes);
 app.use('/api/expenditures', expenditureRoutes);
+// app.use('/api/sso', ssoRoutes);
+
 // Error handling middleware
+const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`CORS allowed origins:`, allowedOrigins);
 });
 
 // Handle unhandled promise rejections

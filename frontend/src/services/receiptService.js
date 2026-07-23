@@ -17,16 +17,23 @@ export const receiptService = {
     return response.data;
   },
 
-  // ============================================
-  // FIX: Add missing editReceipt method
-  // ============================================
+  getReceiptHistory: async (id) => {
+    const response = await api.get(`/receipts/${id}/history`);
+    return response.data;
+  },
+
   editReceipt: async (id, data) => {
     const response = await api.put(`/receipts/${id}/edit`, data);
     return response.data;
   },
 
-  markAsPaid: async (id, data) => {
+  markAsPaid: async (id, data = {}) => {
     const response = await api.put(`/receipts/${id}/pay`, data);
+    return response.data;
+  },
+
+  makePartialPayment: async (id, data) => {
+    const response = await api.post(`/receipts/${id}/pay-partial`, data);
     return response.data;
   },
 

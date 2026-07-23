@@ -84,6 +84,63 @@ const initializeCompanyFinance = async () => {
 };
 
 // ============================================
+// NEW: Update company earnings from receipts (including partial)
+// ============================================
+const updateCompanyEarningsFromReceipts = async () => {
+  try {
+    let finance = await CompanyFinance.findOne();
+    if (!finance) {
+      finance = await initializeCompanyFinance();
+    }
+
+    // Get all receipts with paid amount > 0 (including partial payments)
+    const allReceipts = await Receipt.find({
+      'paidAmount': { $gt: 0 },
+      status: { $ne: 'cancelled' }
+    });
+
+    // Calculate total earnings from all payments (including partial)
+    let totalEarnings = 0;
+    allReceipts.forEach(receipt => {
+      totalEarnings += receipt.paidAmount || 0;
+    });
+
+    // Get total salary expenses
+    const salaryExpenses = await Salary.aggregate([
+      { $group: {
+        _id: null,
+        total: { $sum: '$totalSalary' }
+      }}
+    ]);
+    const totalSalaryExpenses = salaryExpenses[0]?.total || 0;
+
+    // Get total expenditure
+    const expenditureTotal = await Expenditure.aggregate([
+      { $match: { isActive: true, status: { $ne: 'Cancelled' } } },
+      { $group: {
+        _id: null,
+        total: { $sum: '$amount' }
+      }}
+    ]);
+    const totalExpenditure = expenditureTotal[0]?.total || 0;
+
+    // Update finance
+    finance.totalEarnings = totalEarnings;
+    finance.totalExpenses = totalSalaryExpenses;
+    finance.totalExpenditure = totalExpenditure;
+    finance.netProfit = totalEarnings - (totalSalaryExpenses + totalExpenditure);
+    finance.companyValue = finance.initialInvestment + finance.netProfit;
+    finance.sharePrice = finance.companyValue / finance.totalShares;
+
+    await finance.save();
+    return finance;
+  } catch (error) {
+    console.error('Error updating company earnings:', error);
+    throw error;
+  }
+};
+
+// ============================================
 // @desc    Get company financial overview with expenditure
 // @route   GET /api/finance/overview
 // @access  Private (Admin only)
@@ -93,12 +150,12 @@ const getFinancialOverview = async (req, res) => {
     // Initialize finance if not exists
     let finance = await initializeCompanyFinance();
 
-    // Get total earnings from paid receipts
+    // Get total earnings from ALL payments (including partial)
     const receipts = await Receipt.aggregate([
-      { $match: { status: 'paid' } },
+      { $match: { status: { $ne: 'cancelled' }, paidAmount: { $gt: 0 } } },
       { $group: {
         _id: null,
-        total: { $sum: '$totalAmount' }
+        total: { $sum: '$paidAmount' }  // Use paidAmount instead of totalAmount
       }}
     ]);
 
@@ -136,6 +193,18 @@ const getFinancialOverview = async (req, res) => {
       { $sort: { total: -1 } }
     ]);
 
+    // Get receipt statistics
+    const receiptStats = await Receipt.aggregate([
+      { $match: { status: { $ne: 'cancelled' } } },
+      { $group: {
+        _id: '$status',
+        count: { $sum: 1 },
+        totalAmount: { $sum: '$totalAmount' },
+        totalPaid: { $sum: '$paidAmount' },
+        totalDue: { $sum: '$dueAmount' }
+      }}
+    ]);
+
     // Update finance with latest data
     finance.totalEarnings = totalEarnings;
     finance.totalExpenses = totalSalaryExpenses;
@@ -162,7 +231,9 @@ const getFinancialOverview = async (req, res) => {
     }
     
     // Recalculate all values
-    finance = await CompanyFinance.calculateShareValues(finance);
+    finance.netProfit = totalEarnings - (totalSalaryExpenses + totalExpenditure);
+    finance.companyValue = finance.initialInvestment + finance.netProfit;
+    finance.sharePrice = finance.companyValue / finance.totalShares;
     await finance.save();
 
     // Build shareholder data with values
@@ -198,6 +269,7 @@ const getFinancialOverview = async (req, res) => {
         sharePriceGrowth: sharePriceGrowth.toFixed(2),
         companyValuation: finance.companyValue,
         receiptsTotal: totalEarnings,
+        receiptStats,
         expenditureBreakdown: expenditureByCategory,
         shareDetails: {
           totalShares: finance.totalShares,
@@ -211,6 +283,59 @@ const getFinancialOverview = async (req, res) => {
     });
   } catch (error) {
     console.error('Get financial overview error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ============================================
+// @desc    Get receipt earnings breakdown
+// @route   GET /api/finance/receipt-earnings
+// @access  Private (Admin only)
+// ============================================
+const getReceiptEarningsBreakdown = async (req, res) => {
+  try {
+    const receipts = await Receipt.find({
+      paidAmount: { $gt: 0 },
+      status: { $ne: 'cancelled' }
+    })
+    .populate('customerId', 'name phone')
+    .sort({ createdAt: -1 });
+
+    const breakdown = {
+      totalEarned: 0,
+      totalPending: 0,
+      totalPaidFull: 0,
+      totalPartial: 0,
+      receipts: receipts.map(r => ({
+        receiptNumber: r.receiptNumber,
+        customerName: r.recipientName,
+        totalAmount: r.totalAmount,
+        paidAmount: r.paidAmount,
+        dueAmount: r.dueAmount,
+        status: r.status,
+        paymentStatus: r.paymentStatus,
+        date: r.createdAt
+      }))
+    };
+
+    receipts.forEach(r => {
+      breakdown.totalEarned += r.paidAmount;
+      if (r.paymentStatus === 'Paid') {
+        breakdown.totalPaidFull += r.paidAmount;
+      } else if (r.paymentStatus === 'Partial') {
+        breakdown.totalPartial += r.paidAmount;
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: breakdown
+    });
+  } catch (error) {
+    console.error('Get receipt earnings breakdown error:', error);
     res.status(400).json({
       success: false,
       message: error.message
@@ -458,11 +583,21 @@ const getFinancialSummary = async (req, res) => {
       r => r.month === currentMonth && r.year === currentYear
     );
 
+    // Get total earnings from ALL payments (including partial)
+    const receipts = await Receipt.aggregate([
+      { $match: { status: { $ne: 'cancelled' }, paidAmount: { $gt: 0 } } },
+      { $group: {
+        _id: null,
+        total: { $sum: '$paidAmount' }
+      }}
+    ]);
+    const totalEarnings = receipts[0]?.total || 0;
+
     const summary = {
-      totalEarnings: finance.totalEarnings || 0,
+      totalEarnings: totalEarnings,
       totalExpenses: finance.totalExpenses || 0,
       totalExpenditure: finance.totalExpenditure || 0,
-      netProfit: finance.netProfit || 0,
+      netProfit: totalEarnings - (finance.totalExpenses || 0) - (finance.totalExpenditure || 0),
       companyValue: finance.companyValue || 0,
       sharePrice: finance.sharePrice || 15,
       monthlyEarnings: monthlyReport?.earnings || 0,
@@ -485,6 +620,61 @@ const getFinancialSummary = async (req, res) => {
 };
 
 // ============================================
+// @desc    Get earnings from receipts (including partial)
+// @route   GET /api/finance/earnings
+// @access  Private (Admin only)
+// ============================================
+const getEarnings = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    const query = { 
+      paidAmount: { $gt: 0 },
+      status: { $ne: 'cancelled' }
+    };
+    
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    const receipts = await Receipt.find(query)
+      .populate('customerId', 'name phone')
+      .sort({ createdAt: -1 });
+
+    const totalEarned = receipts.reduce((sum, r) => sum + r.paidAmount, 0);
+    
+    const breakdown = {
+      totalEarned,
+      count: receipts.length,
+      fullPayments: receipts.filter(r => r.paymentStatus === 'Paid').length,
+      partialPayments: receipts.filter(r => r.paymentStatus === 'Partial').length,
+      receipts: receipts.map(r => ({
+        receiptNumber: r.receiptNumber,
+        customerName: r.recipientName,
+        totalAmount: r.totalAmount,
+        paidAmount: r.paidAmount,
+        dueAmount: r.dueAmount,
+        paymentStatus: r.paymentStatus,
+        date: r.createdAt
+      }))
+    };
+
+    res.status(200).json({
+      success: true,
+      data: breakdown
+    });
+  } catch (error) {
+    console.error('Get earnings error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ============================================
 // EXPORT ALL FUNCTIONS
 // ============================================
 module.exports = {
@@ -493,5 +683,9 @@ module.exports = {
   addTransaction,
   getSalaryBreakdown,
   getExpenditureBreakdown,
-  getFinancialSummary
+  getFinancialSummary,
+  getEarnings,
+  getReceiptEarningsBreakdown,
+  updateCompanyEarningsFromReceipts,
+  initializeCompanyFinance
 };

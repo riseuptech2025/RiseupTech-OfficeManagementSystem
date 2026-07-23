@@ -9,12 +9,28 @@ const receiptSchema = new mongoose.Schema({
   },
   invoiceNumber: {
     type: String,
-    sparse: true
+    // sparse: true
   },
   issueDate: {
     type: Date,
     default: Date.now
+  },originalReceiptId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Receipt'
   },
+  isPartialPayment: {
+    type: Boolean,
+    default: false
+  },
+  partialPayments: [{
+    receiptId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Receipt'
+    },
+    amount: Number,
+    date: Date,
+    receiptNumber: String
+  }],
   issueTime: {
     type: String
   },

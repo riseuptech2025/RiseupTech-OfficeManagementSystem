@@ -406,13 +406,15 @@ const UserPage = () => {
   const staffUsers = users.filter(u => u.role === 'staff').length;
 
   // Filter users
-  const filteredUsers = users.filter(u => {
-    const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          u.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || u.role === filterRole;
-    return matchesSearch && matchesRole;
-  });
+ const filteredUsers = users.filter(u => {
+  const searchLower = searchTerm.toLowerCase();
+  const matchesSearch = 
+    (u.name?.toLowerCase() || '').includes(searchLower) ||
+    (u.email?.toLowerCase() || '').includes(searchLower) ||
+    (u.employeeId?.toLowerCase() || '').includes(searchLower);
+  const matchesRole = filterRole === 'all' || u.role === filterRole;
+  return matchesSearch && matchesRole;
+});
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] flex">

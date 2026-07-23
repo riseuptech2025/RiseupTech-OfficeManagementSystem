@@ -5,7 +5,6 @@ const User = require('../models/User');
 const notificationService = require('../services/notificationService');
 const CompanyFinance = require('../models/CompanyFinance');
 
-
 // Helper function to convert number to words
 const numberToWords = (num) => {
   const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -46,29 +45,79 @@ const numberToWords = (num) => {
 };
 
 // Function to generate receipt number
-const generateReceiptNumber = async () => {
+const generateReceiptNumber = async (prefix = 'RT-RCP') => {
   const now = new Date();
-  const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
   
-  const startOfDay = new Date(year, now.getMonth(), now.getDate());
-  const endOfDay = new Date(year, now.getMonth(), now.getDate() + 1);
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   
   const count = await Receipt.countDocuments({
     createdAt: { $gte: startOfDay, $lt: endOfDay }
   });
   
   const sequence = String(count + 1).padStart(4, '0');
-  return `RT-RCP-${month}-${sequence}`;
+  return `${prefix}-${month}-${sequence}`;
 };
 
 // Default remarks template
 const DEFAULT_REMARKS = 'Thank you for choosing Riseup-Tech Software Company. We appreciate your business and look forward to serving you again.';
 
+// ============================================
+// Helper function to update company earnings
+// ============================================
+const updateCompanyEarnings = async (receipt, amountToAdd = null) => {
+  try {
+    const earningsAmount = amountToAdd !== null ? amountToAdd : (receipt.paidAmount || 0);
+    
+    if (earningsAmount <= 0) return;
+
+    let finance = await CompanyFinance.findOne();
+    if (!finance) {
+      finance = await CompanyFinance.create({
+        shareholders: [
+          { name: 'Ramanand Mandal', shares: 80 },
+          { name: 'Dipak Kumar Mandal Khatwe', shares: 70 }
+        ]
+      });
+    }
+    
+    finance.totalEarnings = (finance.totalEarnings || 0) + earningsAmount;
+    finance.netProfit = (finance.totalEarnings || 0) - (finance.totalExpenses || 0) - (finance.totalExpenditure || 0);
+    
+    // Update monthly report
+    const month = new Date().getMonth() + 1;
+    const year = new Date().getFullYear();
+    let monthReport = finance.monthlyReports.find(
+      r => r.month === month && r.year === year
+    );
+    
+    if (monthReport) {
+      monthReport.earnings = (monthReport.earnings || 0) + earningsAmount;
+      monthReport.profit = (monthReport.earnings || 0) - (monthReport.expenses || 0);
+    } else {
+      finance.monthlyReports.push({
+        month,
+        year,
+        earnings: earningsAmount,
+        expenses: 0,
+        profit: earningsAmount
+      });
+    }
+    
+    await finance.save();
+    
+    console.log(`✅ Earnings updated: +${earningsAmount} (${receipt.receiptNumber})`);
+  } catch (error) {
+    console.error('Error updating company earnings:', error);
+  }
+};
+
+// ============================================
 // @desc    Generate a new receipt
 // @route   POST /api/receipts
 // @access  Private
+// ============================================
 const generateReceipt = async (req, res) => {
   try {
     const {
@@ -84,12 +133,12 @@ const generateReceipt = async (req, res) => {
       transactionId,
       bankName,
       paidAmount,
-      paymentStatus: requestedPaymentStatus,
       remarks,
       customerSignature,
       authorizedSignature,
       companyStamp,
-      saveCustomer
+      saveCustomer,
+      originalReceiptId // For partial payments
     } = req.body;
 
     console.log('Received receipt data:', req.body);
@@ -139,7 +188,7 @@ const generateReceipt = async (req, res) => {
     const vatAmount = taxableAmount * (vatRateValue / 100);
     const grandTotal = taxableAmount + vatAmount;
 
-    // Handle partial payment
+    // Handle payment
     const paidAmountValue = parseFloat(paidAmount) || 0;
     const finalPaidAmount = Math.min(paidAmountValue, grandTotal);
     const dueAmount = grandTotal - finalPaidAmount;
@@ -287,7 +336,9 @@ const generateReceipt = async (req, res) => {
       issuedByName: req.user.name,
       status: finalStatus,
       isEditable: isEditable,
-      category: 'Invoice'
+      category: 'Invoice',
+      originalReceiptId: originalReceiptId || null, // Link to original receipt
+      isPartialPayment: !!originalReceiptId // Flag for partial payments
     };
 
     // If paid, set payment date
@@ -305,19 +356,54 @@ const generateReceipt = async (req, res) => {
         date: new Date(),
         receivedBy: req.user.id,
         receivedByName: req.user.name,
-        notes: 'Initial payment'
+        notes: originalReceiptId ? 'Partial payment' : 'Initial payment'
       }];
     }
 
     console.log('Receipt data to save:', receiptData);
 
-    // Create receipt - NO PRE-SAVE MIDDLEWARE
+    // Create receipt
     const receipt = new Receipt(receiptData);
     await receipt.save();
 
+    // If this is a partial payment, update the original receipt
+    if (originalReceiptId) {
+      const originalReceipt = await Receipt.findById(originalReceiptId);
+      if (originalReceipt) {
+        originalReceipt.partialPayments = originalReceipt.partialPayments || [];
+        originalReceipt.partialPayments.push({
+          receiptId: receipt._id,
+          amount: finalPaidAmount,
+          date: new Date(),
+          receiptNumber: receipt.receiptNumber
+        });
+        
+        // Update original receipt's paid amount
+        originalReceipt.paidAmount = (originalReceipt.paidAmount || 0) + finalPaidAmount;
+        originalReceipt.dueAmount = originalReceipt.totalAmount - originalReceipt.paidAmount;
+        
+        // If fully paid, update status
+        if (originalReceipt.dueAmount <= 0) {
+          originalReceipt.status = 'paid';
+          originalReceipt.isEditable = false;
+          originalReceipt.paymentStatus = 'Paid';
+          originalReceipt.paymentDate = new Date();
+        } else {
+          originalReceipt.paymentStatus = 'Partial';
+        }
+        
+        await originalReceipt.save();
+      }
+    }
+
+    // Update earnings
+    if (finalPaidAmount > 0) {
+      await updateCompanyEarnings(receipt, finalPaidAmount);
+    }
+
     // Add audit log
     receipt.auditLog.push({
-      action: isFullyPaid ? 'generated_and_paid' : 'generated',
+      action: originalReceiptId ? 'partial_payment_generated' : 'generated',
       user: req.user.id,
       userName: req.user.name,
       details: `Receipt ${receipt.receiptNumber} generated for ${customerName} - Paid: ${finalPaidAmount}, Due: ${dueAmount}`
@@ -337,9 +423,212 @@ const generateReceipt = async (req, res) => {
   }
 };
 
+// ============================================
+// @desc    Generate partial payment receipt
+// @route   POST /api/receipts/:id/pay-partial
+// @access  Private
+// ============================================
+const generatePartialPayment = async (req, res) => {
+  try {
+    const { paymentAmount, paymentMethod, transactionId, bankName, remarks } = req.body;
+    const receiptId = req.params.id;
+
+    // Find the original receipt
+    const originalReceipt = await Receipt.findById(receiptId);
+    if (!originalReceipt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Original receipt not found'
+      });
+    }
+
+    if (originalReceipt.status === 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'This receipt is already fully paid'
+      });
+    }
+
+    if (originalReceipt.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'This receipt has been cancelled'
+      });
+    }
+
+    // Validate payment amount
+    const paymentAmountValue = parseFloat(paymentAmount) || 0;
+    if (paymentAmountValue <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment amount must be greater than 0'
+      });
+    }
+
+    if (paymentAmountValue > originalReceipt.dueAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment amount cannot exceed due amount (${originalReceipt.dueAmount})`
+      });
+    }
+
+    // Payment method validation
+    const onlineMethods = ['eSewa', 'Khalti', 'Bank Transfer', 'FonePay', 'Credit/Debit Card'];
+    const isOnlinePayment = onlineMethods.includes(paymentMethod);
+
+    if (isOnlinePayment && !transactionId) {
+      return res.status(400).json({
+        success: false,
+        message: `Transaction ID is required for ${paymentMethod} payments`
+      });
+    }
+
+    if (paymentMethod === 'Bank Transfer' && !bankName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bank name is required for Bank Transfer payments'
+      });
+    }
+
+    // Generate partial receipt number
+    const receiptNumber = await generateReceiptNumber('RT-PRT');
+
+    // Generate invoice number
+    const invoiceCount = await Receipt.countDocuments({ category: 'Invoice' }) + 1;
+    const now = new Date();
+    const invoiceNumber = `INV-PARTIAL-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-${String(invoiceCount).padStart(4, '0')}`;
+
+    // Format date and time
+    const dateStr = now.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const timeStr = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    // Calculate new due amount
+    const newDueAmount = originalReceipt.dueAmount - paymentAmountValue;
+    const isFullyPaid = newDueAmount <= 0;
+
+    // Create partial payment receipt
+    const partialReceiptData = {
+      receiptNumber,
+      customerId: originalReceipt.customerId,
+      companyName: originalReceipt.companyName,
+      companyLogo: originalReceipt.companyLogo,
+      companyAddress: originalReceipt.companyAddress,
+      companyPhone: originalReceipt.companyPhone,
+      companyEmail: originalReceipt.companyEmail,
+      companyWebsite: originalReceipt.companyWebsite,
+      companyPan: originalReceipt.companyPan,
+      receiptTitle: 'PARTIAL PAYMENT RECEIPT',
+      invoiceNumber,
+      issueDate: now,
+      issueTime: timeStr,
+      dateStr,
+      timeStr,
+      recipientName: originalReceipt.recipientName,
+      recipientPhone: originalReceipt.recipientPhone,
+      recipientEmail: originalReceipt.recipientEmail,
+      recipientAddress: originalReceipt.recipientAddress,
+      items: originalReceipt.items.map(item => ({
+        ...item.toObject(),
+        totalPrice: item.totalPrice // Keep the original item details
+      })),
+      subtotal: originalReceipt.subtotal,
+      discountAmount: originalReceipt.discountAmount,
+      taxRate: originalReceipt.taxRate,
+      taxAmount: originalReceipt.taxAmount,
+      totalAmount: paymentAmountValue, // Partial payment amount
+      amountInWords: numberToWords(paymentAmountValue),
+      paidAmount: paymentAmountValue,
+      dueAmount: 0, // This receipt is fully paid
+      paymentStatus: 'Paid',
+      paymentMethod: paymentMethod || 'Cash',
+      paymentReference: transactionId || '',
+      bankName: bankName || '',
+      remarks: remarks || `Partial payment for receipt ${originalReceipt.receiptNumber}. Remaining due: ${newDueAmount > 0 ? newDueAmount : 0}`,
+      customerSignature: originalReceipt.customerSignature,
+      authorizedSignature: originalReceipt.authorizedSignature,
+      companyStamp: originalReceipt.companyStamp,
+      generatedBy: req.user.id,
+      generatedByName: req.user.name,
+      generatedByRole: req.user.role,
+      issuedBy: req.user.id,
+      issuedByName: req.user.name,
+      status: 'paid',
+      isEditable: false,
+      category: 'Invoice',
+      originalReceiptId: originalReceipt._id,
+      isPartialPayment: true,
+      paymentDate: new Date()
+    };
+
+    // Create the partial receipt
+    const partialReceipt = new Receipt(partialReceiptData);
+    await partialReceipt.save();
+
+    // Update original receipt
+    originalReceipt.partialPayments = originalReceipt.partialPayments || [];
+    originalReceipt.partialPayments.push({
+      receiptId: partialReceipt._id,
+      amount: paymentAmountValue,
+      date: new Date(),
+      receiptNumber: partialReceipt.receiptNumber
+    });
+    
+    originalReceipt.paidAmount = (originalReceipt.paidAmount || 0) + paymentAmountValue;
+    originalReceipt.dueAmount = originalReceipt.totalAmount - originalReceipt.paidAmount;
+    
+    if (originalReceipt.dueAmount <= 0) {
+      originalReceipt.status = 'paid';
+      originalReceipt.isEditable = false;
+      originalReceipt.paymentStatus = 'Paid';
+      originalReceipt.paymentDate = new Date();
+    } else {
+      originalReceipt.paymentStatus = 'Partial';
+    }
+    
+    await originalReceipt.save();
+
+    // Update earnings with the payment amount
+    await updateCompanyEarnings(partialReceipt, paymentAmountValue);
+
+    // Add audit log
+    partialReceipt.auditLog.push({
+      action: 'partial_payment_generated',
+      user: req.user.id,
+      userName: req.user.name,
+      details: `Partial payment receipt ${partialReceipt.receiptNumber} generated for ${originalReceipt.receiptNumber} - Amount: ${paymentAmountValue}, Remaining due: ${originalReceipt.dueAmount}`
+    });
+    await partialReceipt.save();
+
+    res.status(201).json({
+      success: true,
+      data: {
+        originalReceipt,
+        partialReceipt,
+        message: isFullyPaid ? 'Receipt fully paid!' : 'Partial payment recorded successfully'
+      }
+    });
+  } catch (error) {
+    console.error('Generate partial payment error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to generate partial payment'
+    });
+  }
+};
+
+// ============================================
 // @desc    Get all receipts
 // @route   GET /api/receipts
 // @access  Private
+// ============================================
 const getReceipts = async (req, res) => {
   try {
     const { status, category, page = 1, limit = 20 } = req.query;
@@ -384,9 +673,58 @@ const getReceipts = async (req, res) => {
   }
 };
 
+// ============================================
+// @desc    Get receipt with partial payment history
+// @route   GET /api/receipts/:id/history
+// @access  Private
+// ============================================
+const getReceiptHistory = async (req, res) => {
+  try {
+    const receipt = await Receipt.findById(req.params.id)
+      .populate('generatedBy', 'name email role profilePicture')
+      .populate('customerId', 'name phone email address');
+
+    if (!receipt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Receipt not found'
+      });
+    }
+
+    // Get all partial payments for this receipt
+    const partialPayments = receipt.partialPayments || [];
+    const partialReceipts = await Receipt.find({
+      _id: { $in: partialPayments.map(p => p.receiptId) }
+    }).sort({ createdAt: 1 });
+
+    // Get all payment history
+    const paymentHistory = receipt.paymentHistory || [];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        receipt,
+        partialPayments,
+        partialReceipts,
+        paymentHistory,
+        totalPaid: receipt.paidAmount,
+        totalDue: receipt.dueAmount
+      }
+    });
+  } catch (error) {
+    console.error('Get receipt history error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ============================================
 // @desc    Get single receipt
 // @route   GET /api/receipts/:id
 // @access  Private
+// ============================================
 const getReceipt = async (req, res) => {
   try {
     const receipt = await Receipt.findById(req.params.id)
@@ -429,9 +767,11 @@ const getReceipt = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Edit receipt
 // @route   PUT /api/receipts/:id/edit
 // @access  Private
+// ============================================
 const editReceipt = async (req, res) => {
   try {
     const receipt = await Receipt.findById(req.params.id);
@@ -480,6 +820,7 @@ const editReceipt = async (req, res) => {
     } = req.body;
 
     // Store old values for audit
+    const oldPaidAmount = receipt.paidAmount;
     const oldValues = {
       customerName: receipt.recipientName,
       customerPhone: receipt.recipientPhone,
@@ -544,7 +885,6 @@ const editReceipt = async (req, res) => {
         receipt.status = 'paid';
         receipt.isEditable = false;
         receipt.paymentDate = new Date();
-        // Ensure paid amount equals total
         receipt.paidAmount = receipt.totalAmount;
         receipt.dueAmount = 0;
       } else {
@@ -584,6 +924,15 @@ const editReceipt = async (req, res) => {
 
     await receipt.save();
 
+    // Update earnings if paid amount changed
+    const newPaidAmount = receipt.paidAmount;
+    if (newPaidAmount !== oldPaidAmount) {
+      const difference = newPaidAmount - oldPaidAmount;
+      if (difference > 0) {
+        await updateCompanyEarnings(receipt, difference);
+      }
+    }
+
     receipt.auditLog.push({
       action: 'edited',
       user: req.user.id,
@@ -605,12 +954,17 @@ const editReceipt = async (req, res) => {
   }
 };
 
-// @desc    Mark receipt as paid
+// ============================================
+// @desc    Mark receipt as paid (legacy - use generatePartialPayment instead)
 // @route   PUT /api/receipts/:id/pay
 // @access  Private
+// ============================================
 const markAsPaid = async (req, res) => {
   try {
-    const { paymentReference, paymentDate } = req.body;
+    // If no body, treat as full payment
+    const paymentReference = req.body?.paymentReference || '';
+    const paymentDate = req.body?.paymentDate || new Date();
+    
     const receipt = await Receipt.findById(req.params.id);
 
     if (!receipt) {
@@ -637,6 +991,9 @@ const markAsPaid = async (req, res) => {
       });
     }
 
+    // Calculate additional payment amount
+    const additionalPayment = receipt.dueAmount;
+
     receipt.status = 'paid';
     receipt.isEditable = false;
     receipt.paymentStatus = 'Paid';
@@ -649,30 +1006,38 @@ const markAsPaid = async (req, res) => {
 
     await receipt.save();
 
+    // Update earnings with the due amount
+    if (additionalPayment > 0) {
+      await updateCompanyEarnings(receipt, additionalPayment);
+    }
+
     receipt.auditLog.push({
       action: 'paid',
       user: req.user.id,
       userName: req.user.name,
-      details: `Receipt ${receipt.receiptNumber} marked as paid`
+      details: `Receipt ${receipt.receiptNumber} marked as paid - Additional payment: ${additionalPayment}`
     });
     await receipt.save();
 
     res.status(200).json({
       success: true,
-      data: receipt
+      data: receipt,
+      message: 'Receipt marked as paid successfully'
     });
   } catch (error) {
     console.error('Mark as paid error:', error);
     res.status(400).json({
       success: false,
-      message: error.message
+      message: error.message || 'Failed to mark receipt as paid'
     });
   }
 };
 
+// ============================================
 // @desc    Update receipt status
 // @route   PUT /api/receipts/:id/status
 // @access  Private
+// ============================================
 const updateReceiptStatus = async (req, res) => {
   try {
     const { status, paymentReference, paymentDate } = req.body;
@@ -696,6 +1061,12 @@ const updateReceiptStatus = async (req, res) => {
       });
     }
 
+    // Calculate additional payment if status changes to paid
+    let additionalPayment = 0;
+    if (status === 'paid' && receipt.status !== 'paid') {
+      additionalPayment = receipt.dueAmount;
+    }
+
     receipt.status = status;
     if (status === 'paid') {
       receipt.isEditable = false;
@@ -714,11 +1085,16 @@ const updateReceiptStatus = async (req, res) => {
 
     await receipt.save();
 
+    // Update earnings if status changed to paid
+    if (additionalPayment > 0) {
+      await updateCompanyEarnings(receipt, additionalPayment);
+    }
+
     receipt.auditLog.push({
       action: 'status_updated',
       user: req.user.id,
       userName: req.user.name,
-      details: `Receipt status updated to ${status}`
+      details: `Receipt status updated to ${status}${additionalPayment > 0 ? ` - Additional payment: ${additionalPayment}` : ''}`
     });
     await receipt.save();
 
@@ -735,9 +1111,11 @@ const updateReceiptStatus = async (req, res) => {
   }
 };
 
-// @desc    Delete receipt
+// ============================================
+// @desc    Delete receipt (cancel)
 // @route   DELETE /api/receipts/:id
 // @access  Private
+// ============================================
 const deleteReceipt = async (req, res) => {
   try {
     const receipt = await Receipt.findById(req.params.id);
@@ -759,6 +1137,11 @@ const deleteReceipt = async (req, res) => {
       });
     }
 
+    // If receipt has paid amount, we need to deduct from earnings
+    if (receipt.paidAmount > 0) {
+      console.warn(`⚠️ Receipt ${receipt.receiptNumber} has paid amount ${receipt.paidAmount}. Earnings adjustment needed.`);
+    }
+
     receipt.status = 'cancelled';
     receipt.isEditable = false;
     await receipt.save();
@@ -776,9 +1159,11 @@ const deleteReceipt = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Get receipt statistics
 // @route   GET /api/receipts/stats
 // @access  Private
+// ============================================
 const getReceiptStats = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -824,9 +1209,11 @@ const getReceiptStats = async (req, res) => {
   }
 };
 
+// ============================================
 // @desc    Download receipt (increment download count)
 // @route   PUT /api/receipts/:id/download
 // @access  Private
+// ============================================
 const downloadReceipt = async (req, res) => {
   try {
     const receipt = await Receipt.findById(req.params.id);
@@ -854,53 +1241,20 @@ const downloadReceipt = async (req, res) => {
   }
 };
 
-const updateCompanyEarnings = async (receipt) => {
-  if (receipt.status === 'paid') {
-    let finance = await CompanyFinance.findOne();
-    if (!finance) {
-      finance = await CompanyFinance.create({
-        shareholders: [
-          { name: 'Ramanand Mandal', shares: 80 },
-          { name: 'Dipak Kumar Mandal Khatwe', shares: 70 }
-        ]
-      });
-    }
-    
-    finance.totalEarnings += receipt.totalAmount;
-    finance.netProfit = finance.totalEarnings - finance.totalExpenses;
-    
-    // Update monthly report
-    const month = new Date().getMonth() + 1;
-    const year = new Date().getFullYear();
-    const monthReport = finance.monthlyReports.find(
-      r => r.month === month && r.year === year
-    );
-    
-    if (monthReport) {
-      monthReport.earnings = (monthReport.earnings || 0) + receipt.totalAmount;
-      monthReport.profit = monthReport.earnings - monthReport.expenses;
-    } else {
-      finance.monthlyReports.push({
-        month,
-        year,
-        earnings: receipt.totalAmount,
-        expenses: 0,
-        profit: receipt.totalAmount
-      });
-    }
-    
-    await finance.save();
-  }
-};
-
+// ============================================
+// EXPORT ALL FUNCTIONS
+// ============================================
 module.exports = {
   generateReceipt,
-  editReceipt,
-  markAsPaid,
+  generatePartialPayment,
   getReceipts,
   getReceipt,
+  getReceiptHistory,
+  editReceipt,
+  markAsPaid,
   updateReceiptStatus,
   deleteReceipt,
   getReceiptStats,
-  downloadReceipt
+  downloadReceipt,
+  updateCompanyEarnings
 };
