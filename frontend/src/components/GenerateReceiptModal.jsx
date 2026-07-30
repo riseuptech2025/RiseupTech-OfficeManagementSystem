@@ -329,7 +329,7 @@ const GenerateReceiptModal = ({ onClose, onSuccess }) => {
                   onChange={handleChange}
                   required
                   className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent"
-                  placeholder="John Doe"
+                  placeholder="Enter Your Name"
                 />
               </div>
               <div>

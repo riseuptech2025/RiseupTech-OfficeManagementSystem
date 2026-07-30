@@ -18,11 +18,22 @@ import CustomerPage from './pages/Customers/CustomerPage';
 import FinancePage from './pages/Finance/FinancePage';
 import PolicyPage from './pages/Policy/PolicyPage';
 import ExpenditurePage from './pages/Expenditure/ExpenditurePage';
-import PasswordManagerPage from './pages/PasswordManager/PasswordManagerPage';
+import WebsiteManager from './pages/WebsiteManager/WebsiteManager';
 
 const ProtectedRoute = ({ children }) => {
   if (!authService.isAuthenticated()) {
     return <Navigate to="/login" />;
+  }
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const user = authService.getUser();
+  if (!authService.isAuthenticated()) {
+    return <Navigate to="/login" />;
+  }
+  if (!user || !['admin', 'super_admin'].includes(user.role)) {
+    return <Navigate to="/home" />;
   }
   return children;
 };
@@ -98,64 +109,61 @@ function App() {
           }
         />
         <Route
-  path="/account"
-  element={
-    <ProtectedRoute>
-      <AccountPage />
-    </ProtectedRoute>
-  }
-/>
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <AccountPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
-  path="/notifications"
-  element={
-    <ProtectedRoute>
-      <NotificationPage />
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/customers"
-  element={
-    <ProtectedRoute>
-      <CustomerPage />
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/passwords"
-  element={
-    <ProtectedRoute>
-      <PasswordManagerPage />
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/expenditure"
-  element={
-    <ProtectedRoute>
-      <ExpenditurePage />
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance"
-  element={
-    <ProtectedRoute>
-      <FinancePage />
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/policy"
-  element={
-    <ProtectedRoute>
-      <PolicyPage />
-    </ProtectedRoute>
-  }
-/>
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customers"
+          element={
+            <ProtectedRoute>
+              <CustomerPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expenditure"
+          element={
+            <ProtectedRoute>
+              <ExpenditurePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/finance"
+          element={
+            <ProtectedRoute>
+              <FinancePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/policy"
+          element={
+            <ProtectedRoute>
+              <PolicyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/website-manager"
+          element={
+            <AdminRoute>
+              <WebsiteManager />
+            </AdminRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

@@ -23,6 +23,7 @@ const financeRoutes = require('./routes/financeRoutes');
 const policyRoutes = require('./routes/policyRoutes');
 const expenditureRoutes = require('./routes/expenditureRoutes');
 const passwordManagerRoutes = require('./routes/passwordManagerRoutes');
+const websiteRoutes = require('./routes/websiteRoutes');
 
 // Connect to MongoDB
 const connectDB = require('./config/database');
@@ -105,6 +106,7 @@ app.use('/api/finance', financeRoutes);
 app.use('/api/policies', policyRoutes);
 app.use('/api/expenditures', expenditureRoutes);
 app.use('/api/passwords', passwordManagerRoutes);
+app.use('/api/website', websiteRoutes);
 
 // Error handling middleware
 const errorHandler = require('./middleware/errorHandler');

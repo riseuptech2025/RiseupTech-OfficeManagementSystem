@@ -1,13 +1,14 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// ============================================
+// PROTECT MIDDLEWARE - Verify JWT Token
+// ============================================
 const protect = async (req, res, next) => {
   let token;
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
+  // Check if token exists in headers
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       // Get token from header
       token = req.headers.authorization.split(' ')[1];
@@ -21,16 +22,16 @@ const protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: 'Not authorized, user not found',
+          message: 'User not found'
         });
       }
 
       next();
     } catch (error) {
-      console.error(error);
+      console.error('Auth error:', error);
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed',
+        message: 'Not authorized, token failed'
       });
     }
   }
@@ -38,9 +39,38 @@ const protect = async (req, res, next) => {
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: 'Not authorized, no token',
+      message: 'Not authorized, no token'
     });
   }
 };
 
-module.exports = { protect };
+// ============================================
+// AUTHORIZE MIDDLEWARE - Check User Roles
+// ============================================
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `User role ${req.user.role} is not authorized to access this route`
+      });
+    }
+
+    next();
+  };
+};
+
+// ============================================
+// EXPORT MIDDLEWARES
+// ============================================
+module.exports = {
+  protect,
+  authorize
+};

@@ -110,6 +110,13 @@ export const authService = {
     return user ? JSON.parse(user) : null;
   },
 
+  // ============================================
+  // ADDED: getToken method for components that need it
+  // ============================================
+  getToken: () => {
+    return localStorage.getItem('token');
+  },
+
   getUsers: async () => {
     try {
       const response = await api.get('/users');
@@ -306,6 +313,522 @@ export const dashboardService = {
       throw error;
     }
   },
+};
+
+// ============================================
+// WEBSITE SERVICE (NEW)
+// ============================================
+export const websiteService = {
+  // Pages
+  getPages: async () => {
+    try {
+      const response = await api.get('/website/pages');
+      return response.data;
+    } catch (error) {
+      console.error('Get pages error:', error);
+      throw error;
+    }
+  },
+
+  getPage: async (id) => {
+    try {
+      const response = await api.get(`/website/pages/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get page error:', error);
+      throw error;
+    }
+  },
+
+  getPageBySlug: async (slug) => {
+    try {
+      const response = await api.get(`/website/pages/slug/${slug}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get page by slug error:', error);
+      throw error;
+    }
+  },
+
+  createPage: async (data) => {
+    try {
+      const response = await api.post('/website/pages', data);
+      return response.data;
+    } catch (error) {
+      console.error('Create page error:', error);
+      throw error;
+    }
+  },
+
+  updatePage: async (id, data) => {
+    try {
+      const response = await api.put(`/website/pages/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update page error:', error);
+      throw error;
+    }
+  },
+
+  deletePage: async (id) => {
+    try {
+      const response = await api.delete(`/website/pages/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete page error:', error);
+      throw error;
+    }
+  },
+
+  // Blogs
+  getBlogs: async () => {
+    try {
+      const response = await api.get('/website/blogs');
+      return response.data;
+    } catch (error) {
+      console.error('Get blogs error:', error);
+      throw error;
+    }
+  },
+
+  getBlog: async (id) => {
+    try {
+      const response = await api.get(`/website/blogs/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get blog error:', error);
+      throw error;
+    }
+  },
+
+  getBlogBySlug: async (slug) => {
+    try {
+      const response = await api.get(`/website/blogs/slug/${slug}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get blog by slug error:', error);
+      throw error;
+    }
+  },
+
+  createBlog: async (data) => {
+    try {
+      const response = await api.post('/website/blogs', data);
+      return response.data;
+    } catch (error) {
+      console.error('Create blog error:', error);
+      throw error;
+    }
+  },
+
+  updateBlog: async (id, data) => {
+    try {
+      const response = await api.put(`/website/blogs/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update blog error:', error);
+      throw error;
+    }
+  },
+
+  deleteBlog: async (id) => {
+    try {
+      const response = await api.delete(`/website/blogs/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete blog error:', error);
+      throw error;
+    }
+  },
+
+  // Services
+  getServices: async () => {
+    try {
+      const response = await api.get('/website/services');
+      return response.data;
+    } catch (error) {
+      console.error('Get services error:', error);
+      throw error;
+    }
+  },
+
+  getService: async (id) => {
+    try {
+      const response = await api.get(`/website/services/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get service error:', error);
+      throw error;
+    }
+  },
+
+  createService: async (data) => {
+    try {
+      const response = await api.post('/website/services', data);
+      return response.data;
+    } catch (error) {
+      console.error('Create service error:', error);
+      throw error;
+    }
+  },
+
+  updateService: async (id, data) => {
+    try {
+      const response = await api.put(`/website/services/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update service error:', error);
+      throw error;
+    }
+  },
+
+  deleteService: async (id) => {
+    try {
+      const response = await api.delete(`/website/services/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete service error:', error);
+      throw error;
+    }
+  },
+
+  // Team
+  getTeam: async () => {
+    try {
+      const response = await api.get('/website/team');
+      return response.data;
+    } catch (error) {
+      console.error('Get team error:', error);
+      throw error;
+    }
+  },
+
+  createTeamMember: async (data) => {
+    try {
+      const response = await api.post('/website/team', data);
+      return response.data;
+    } catch (error) {
+      console.error('Create team member error:', error);
+      throw error;
+    }
+  },
+
+  updateTeamMember: async (id, data) => {
+    try {
+      const response = await api.put(`/website/team/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update team member error:', error);
+      throw error;
+    }
+  },
+
+  deleteTeamMember: async (id) => {
+    try {
+      const response = await api.delete(`/website/team/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete team member error:', error);
+      throw error;
+    }
+  },
+
+  // Testimonials
+  getTestimonials: async () => {
+    try {
+      const response = await api.get('/website/testimonials');
+      return response.data;
+    } catch (error) {
+      console.error('Get testimonials error:', error);
+      throw error;
+    }
+  },
+
+  createTestimonial: async (data) => {
+    try {
+      const response = await api.post('/website/testimonials', data);
+      return response.data;
+    } catch (error) {
+      console.error('Create testimonial error:', error);
+      throw error;
+    }
+  },
+
+  updateTestimonial: async (id, data) => {
+    try {
+      const response = await api.put(`/website/testimonials/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update testimonial error:', error);
+      throw error;
+    }
+  },
+
+  deleteTestimonial: async (id) => {
+    try {
+      const response = await api.delete(`/website/testimonials/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete testimonial error:', error);
+      throw error;
+    }
+  },
+
+  // Careers
+  getCareers: async () => {
+    try {
+      const response = await api.get('/website/careers');
+      return response.data;
+    } catch (error) {
+      console.error('Get careers error:', error);
+      throw error;
+    }
+  },
+
+  getCareer: async (id) => {
+    try {
+      const response = await api.get(`/website/careers/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get career error:', error);
+      throw error;
+    }
+  },
+
+  createCareer: async (data) => {
+    try {
+      const response = await api.post('/website/careers', data);
+      return response.data;
+    } catch (error) {
+      console.error('Create career error:', error);
+      throw error;
+    }
+  },
+
+  updateCareer: async (id, data) => {
+    try {
+      const response = await api.put(`/website/careers/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update career error:', error);
+      throw error;
+    }
+  },
+
+  deleteCareer: async (id) => {
+    try {
+      const response = await api.delete(`/website/careers/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete career error:', error);
+      throw error;
+    }
+  },
+
+  applyForCareer: async (id, data) => {
+    try {
+      const response = await api.post(`/website/careers/${id}/apply`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Apply for career error:', error);
+      throw error;
+    }
+  },
+
+  // Contacts
+  getContacts: async () => {
+    try {
+      const response = await api.get('/website/contacts');
+      return response.data;
+    } catch (error) {
+      console.error('Get contacts error:', error);
+      throw error;
+    }
+  },
+
+  submitContact: async (data) => {
+    try {
+      const response = await api.post('/website/contacts', data);
+      return response.data;
+    } catch (error) {
+      console.error('Submit contact error:', error);
+      throw error;
+    }
+  },
+
+  updateContactStatus: async (id, data) => {
+    try {
+      const response = await api.put(`/website/contacts/${id}/status`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update contact status error:', error);
+      throw error;
+    }
+  },
+
+  deleteContact: async (id) => {
+    try {
+      const response = await api.delete(`/website/contacts/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete contact error:', error);
+      throw error;
+    }
+  },
+
+  // Settings
+  getSettings: async () => {
+    try {
+      const response = await api.get('/website/settings');
+      return response.data;
+    } catch (error) {
+      console.error('Get settings error:', error);
+      throw error;
+    }
+  },
+
+  updateSettings: async (data) => {
+    try {
+      const response = await api.put('/website/settings', data);
+      return response.data;
+    } catch (error) {
+      console.error('Update settings error:', error);
+      throw error;
+    }
+  },
+
+  // Upload
+  uploadImage: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      const response = await api.post('/website/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Upload image error:', error);
+      throw error;
+    }
+  }
+};
+
+// ============================================
+// RECEIPT SERVICE (for completeness)
+// ============================================
+export const receiptService = {
+  generateReceipt: async (data) => {
+    try {
+      const response = await api.post('/receipts', data);
+      return response.data;
+    } catch (error) {
+      console.error('Generate receipt error:', error);
+      throw error;
+    }
+  },
+
+  getReceipts: async (params = {}) => {
+    try {
+      const response = await api.get('/receipts', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Get receipts error:', error);
+      throw error;
+    }
+  },
+
+  getReceipt: async (id) => {
+    try {
+      const response = await api.get(`/receipts/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get receipt error:', error);
+      throw error;
+    }
+  },
+
+  editReceipt: async (id, data) => {
+    try {
+      const response = await api.put(`/receipts/${id}/edit`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Edit receipt error:', error);
+      throw error;
+    }
+  },
+
+  markAsPaid: async (id, data = {}) => {
+    try {
+      const response = await api.put(`/receipts/${id}/pay`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Mark as paid error:', error);
+      throw error;
+    }
+  },
+
+  makePartialPayment: async (id, data) => {
+    try {
+      const response = await api.post(`/receipts/${id}/pay-partial`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Make partial payment error:', error);
+      throw error;
+    }
+  },
+
+  updateReceiptStatus: async (id, data) => {
+    try {
+      const response = await api.put(`/receipts/${id}/status`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Update receipt status error:', error);
+      throw error;
+    }
+  },
+
+  deleteReceipt: async (id) => {
+    try {
+      const response = await api.delete(`/receipts/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete receipt error:', error);
+      throw error;
+    }
+  },
+
+  getStats: async () => {
+    try {
+      const response = await api.get('/receipts/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Get receipt stats error:', error);
+      throw error;
+    }
+  },
+
+  downloadReceipt: async (id) => {
+    try {
+      const response = await api.put(`/receipts/${id}/download`);
+      return response.data;
+    } catch (error) {
+      console.error('Download receipt error:', error);
+      throw error;
+    }
+  },
+
+  getReceiptHistory: async (id) => {
+    try {
+      const response = await api.get(`/receipts/${id}/history`);
+      return response.data;
+    } catch (error) {
+      console.error('Get receipt history error:', error);
+      throw error;
+    }
+  }
 };
 
 // ============================================

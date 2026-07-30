@@ -1,3 +1,4 @@
+// components/Sidebar.jsx - Add Website Manager to menu
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,8 +16,8 @@ import {
   FaCalendarAlt,
   FaTasks,
   FaFileAlt,
-  FaLock,
-  FaHistory
+  FaHistory,
+  FaGlobe // Add this import
 } from 'react-icons/fa';
 import CompanyLogo from './CompanyLogo';
 import { authService } from '../services/api';
@@ -89,13 +90,26 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onLogout }) => {
     { id: 'tasks', label: 'Tasks', icon: FaTasks, path: '/tasks' },
     { id: 'expenditure', label: 'Expenditure', icon: FaMoneyBillWave, path: '/expenditure' },
     { id: 'activity', label: 'Activity', icon: FaHistory, path: '/activity' },
-    { id: 'passwords', label: 'Password Manager', icon: FaLock, path: '/passwords' },
-     { id: 'account', label: 'Account', icon: FaReceipt, path: '/account' },
-     { id: 'customers', label: 'Customers', icon: FaUsers, path: '/customers' }, 
-     { id: 'policy', label: 'Policy Center', icon: FaFileAlt, path: '/policy' },
-     { id: 'finance', label: 'Finance', icon: FaMoneyBillWave, path: '/finance' }, 
+    { id: 'account', label: 'Account', icon: FaReceipt, path: '/account' },
+    { id: 'customers', label: 'Customers', icon: FaUsers, path: '/customers' },
+    { id: 'policy', label: 'Policy Center', icon: FaFileAlt, path: '/policy' },
+    { id: 'finance', label: 'Finance', icon: FaMoneyBillWave, path: '/finance' },
+    { id: 'website', label: 'Website Manager', icon: FaGlobe, path: '/website-manager' },
     { id: 'management', label: 'Management', icon: FaCog, path: '/management' },
   ];
+
+  // Filter menu items based on user role
+  const getFilteredMenuItems = () => {
+    // Website Manager only for admin and super_admin
+    return menuItems.filter(item => {
+      if (item.id === 'website') {
+        return user && ['admin', 'super_admin'].includes(user.role);
+      }
+      return true;
+    });
+  };
+
+  const filteredMenuItems = getFilteredMenuItems();
 
   return (
     <motion.div
@@ -126,7 +140,7 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onLogout }) => {
       {/* Sidebar Navigation */}
       <nav className="flex-1 overflow-y-auto p-4">
         <ul className="space-y-2">
-          {menuItems.map((item) => {
+          {filteredMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (

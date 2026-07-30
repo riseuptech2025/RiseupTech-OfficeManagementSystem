@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Add padding-top to all main content to account for fixed navbar */
+.main-content {
+  padding-top: 56px; /* 14 * 4px = 56px for mobile */
+}
+
+@media (min-width: 768px) {
+  .main-content {
+    padding-top: 64px; /* 16 * 4px = 64px for desktop */
+  }
+}
