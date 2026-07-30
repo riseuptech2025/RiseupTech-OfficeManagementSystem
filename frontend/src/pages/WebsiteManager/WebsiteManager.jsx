@@ -147,12 +147,12 @@ const WebsiteManager = () => {
               <p className="text-gray-400 mt-1">Manage your company website content</p>
             </div>
             <button
-              onClick={() => window.open('http://localhost:5174', '_blank')}
-              className="flex items-center gap-2 px-4 py-2 bg-[#00D4FF]/10 text-[#00D4FF] rounded-lg hover:bg-[#00D4FF]/20 transition-all border border-[#00D4FF]/20"
-            >
-              <FaEye className="w-4 h-4" />
-              View Website
-            </button>
+  onClick={() => window.open(import.meta.env.VITE_WEBSITE_URL, '_blank')}
+  className="flex items-center gap-2 px-4 py-2 bg-[#00D4FF]/10 text-[#00D4FF] rounded-lg hover:bg-[#00D4FF]/20 transition-all border border-[#00D4FF]/20"
+>
+  <FaEye className="w-4 h-4" />
+  View Website
+</button>
           </div>
 
           {/* Tabs */}
