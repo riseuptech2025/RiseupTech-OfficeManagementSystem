@@ -112,7 +112,7 @@ const Contact = () => {
               {/* Map */}
               <div className="mt-8 rounded-xl overflow-hidden border border-[#00D4FF]/10">
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3556.123456789012!2d86.12345678901234!3d26.123456789012345!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjbCsDA3JzI0LjUiTiA4NsKwMDcnMjQuNSJF!5e0!3m2!1sen!2snp!4v1234567890123"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1039.936350751214!2d86.77092580927581!3d26.484458142392366!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39eefb001f847887%3A0xcdf8e1c00eaa995c!2sTILATHI%20KOILADI-2!5e0!3m2!1sen!2snp!4v1785436708483!5m2!1sen!2snp"
                   width="100%"
                   height="250"
                   style={{ border: 0 }}
