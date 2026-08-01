@@ -36,14 +36,23 @@ const Footer = () => {
     fetchSettings();
   }, []);
 
-  const socialLinks = [
-    { icon: FaFacebook, url: settings.facebook || '#' },
-    { icon: FaTwitter, url: settings.twitter || '#' },
-    { icon: FaLinkedin, url: settings.linkedin || '#' },
-    { icon: FaGithub, url: settings.github || '#' },
-    { icon: FaInstagram, url: settings.instagram || '#' },
-    { icon: FaYoutube, url: settings.youtube || '#' },
+  // Define social links configuration with their keys from settings
+  const socialLinksConfig = [
+    { icon: FaFacebook, key: 'facebook' },
+    { icon: FaTwitter, key: 'twitter' },
+    { icon: FaLinkedin, key: 'linkedin' },
+    { icon: FaGithub, key: 'github' },
+    { icon: FaInstagram, key: 'instagram' },
+    { icon: FaYoutube, key: 'youtube' },
   ];
+
+  // Filter only social links that have a URL in settings
+  const availableSocialLinks = socialLinksConfig
+    .filter(({ key }) => settings[key] && settings[key] !== '#')
+    .map(({ icon, key }) => ({
+      icon,
+      url: settings[key]
+    }));
 
   const quickLinks = [
     { label: 'Home', path: '/' },
@@ -75,22 +84,25 @@ const Footer = () => {
               Building Digital Excellence through innovative software solutions, 
               web development, and mobile applications.
             </p>
-            <div className="flex gap-3 mt-4">
-              {socialLinks.map((social, index) => {
-                const Icon = social.icon;
-                return (
-                  <a
-                    key={index}
-                    href={social.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all"
-                  >
-                    <Icon className="w-5 h-5" />
-                  </a>
-                );
-              })}
-            </div>
+            {/* Show social icons only if there are available links */}
+            {availableSocialLinks.length > 0 && (
+              <div className="flex gap-3 mt-4">
+                {availableSocialLinks.map((social, index) => {
+                  const Icon = social.icon;
+                  return (
+                    <a
+                      key={index}
+                      href={social.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all"
+                    >
+                      <Icon className="w-5 h-5" />
+                    </a>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Quick Links */}
