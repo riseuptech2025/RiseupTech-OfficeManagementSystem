@@ -898,7 +898,7 @@ const deleteTestimonial = async (req, res) => {
 // SETTINGS CONTROLLERS
 // ============================================
 
-// @desc    Get all settings (Public)
+// @desc    Get all settings
 // @route   GET /api/website/settings
 const getSettings = async (req, res) => {
   try {
@@ -927,7 +927,7 @@ const getSettings = async (req, res) => {
   }
 };
 
-// @desc    Update single setting
+// @desc    Update setting
 // @route   PUT /api/website/settings/:key
 const updateSetting = async (req, res) => {
   try {
@@ -967,7 +967,7 @@ const updateSetting = async (req, res) => {
   }
 };
 
-// @desc    Update multiple settings (Admin only)
+// @desc    Update multiple settings
 // @route   PUT /api/website/settings
 const updateSettings = async (req, res) => {
   try {
@@ -975,9 +975,6 @@ const updateSettings = async (req, res) => {
     const updates = [];
     
     for (const [key, value] of Object.entries(settings)) {
-      // Skip if value is undefined or null
-      if (value === undefined || value === null) continue;
-      
       let setting = await Setting.findOne({ key });
       
       if (setting) {
@@ -997,8 +994,7 @@ const updateSettings = async (req, res) => {
     
     res.status(200).json({
       success: true,
-      data: updates,
-      message: 'Settings updated successfully'
+      data: updates
     });
   } catch (error) {
     console.error('Update settings error:', error);
