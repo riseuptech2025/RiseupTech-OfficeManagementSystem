@@ -44,7 +44,8 @@ const allowedOrigins = [
   'http://192.168.18.249:5173',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
-  'https://riseuptech.com',
+  'https://riseuptech.com.np',
+  'https://workspace.riseuptech.com.np',
   process.env.FRONTEND_URL,
   process.env.SSO_FRONTEND_URL
 ].filter(Boolean);
