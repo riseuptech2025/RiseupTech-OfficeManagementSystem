@@ -21,74 +21,38 @@ const Footer = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        // Use the same API endpoint as SettingsManager
+        // Try to fetch from API, fallback to defaults
         const response = await fetch('/api/website/settings');
         const data = await response.json();
-        
         if (data.success) {
-          console.log('Fetched settings:', data.data); // Debug log
           setSettings(data.data);
-        } else {
-          console.log('API returned success: false');
-          // Fallback to default settings
-          setSettings({
-            facebook: '',
-            twitter: '',
-            linkedin: '',
-            github: '',
-            instagram: '',
-            youtube: '',
-            companyEmail: 'mail@riseuptech.com.np',
-            companyPhone: '9827399860',
-            companyAddress: 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal'
-          });
         }
       } catch (error) {
-        console.error('Error fetching settings:', error);
-        // Fallback to default settings
-        setSettings({
-          facebook: '',
-          twitter: '',
-          linkedin: '',
-          github: '',
-          instagram: '',
-          youtube: '',
-          companyEmail: 'mail@riseuptech.com.np',
-          companyPhone: '9827399860',
-          companyAddress: 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal'
-        });
+        console.log('Using default settings');
       } finally {
         setLoading(false);
       }
     };
-    
     fetchSettings();
   }, []);
 
   // Define social links configuration with their keys from settings
   const socialLinksConfig = [
-    { icon: FaFacebook, key: 'facebook', label: 'Facebook' },
-    { icon: FaTwitter, key: 'twitter', label: 'Twitter' },
-    { icon: FaLinkedin, key: 'linkedin', label: 'LinkedIn' },
-    { icon: FaGithub, key: 'github', label: 'GitHub' },
-    { icon: FaInstagram, key: 'instagram', label: 'Instagram' },
-    { icon: FaYoutube, key: 'youtube', label: 'YouTube' },
+    { icon: FaFacebook, key: 'facebook' },
+    { icon: FaTwitter, key: 'twitter' },
+    { icon: FaLinkedin, key: 'linkedin' },
+    { icon: FaGithub, key: 'github' },
+    { icon: FaInstagram, key: 'instagram' },
+    { icon: FaYoutube, key: 'youtube' },
   ];
 
   // Filter only social links that have a URL in settings
   const availableSocialLinks = socialLinksConfig
-    .filter(({ key }) => {
-      const value = settings[key];
-      // Check if value exists and is not empty and not '#'
-      return value && value !== '' && value !== '#';
-    })
-    .map(({ icon, key, label }) => ({
+    .filter(({ key }) => settings[key] && settings[key] !== '#')
+    .map(({ icon, key }) => ({
       icon,
-      label,
       url: settings[key]
     }));
-
-  console.log('Available social links:', availableSocialLinks); // Debug log
 
   const quickLinks = [
     { label: 'Home', path: '/' },
@@ -104,11 +68,6 @@ const Footer = () => {
     { label: 'Privacy Policy', path: '/privacy' },
     { label: 'Cookies Policy', path: '/cookies' },
   ];
-
-  // Helper to get contact info with fallback
-  const getContactInfo = (key, defaultValue) => {
-    return settings[key] || defaultValue;
-  };
 
   return (
     <footer className="bg-[#111118] border-t border-[#00D4FF]/10">
@@ -127,7 +86,7 @@ const Footer = () => {
             </p>
             {/* Show social icons only if there are available links */}
             {availableSocialLinks.length > 0 && (
-              <div className="flex flex-wrap gap-3 mt-4">
+              <div className="flex gap-3 mt-4">
                 {availableSocialLinks.map((social, index) => {
                   const Icon = social.icon;
                   return (
@@ -136,7 +95,6 @@ const Footer = () => {
                       href={social.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={social.label}
                       className="w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all"
                     >
                       <Icon className="w-5 h-5" />
@@ -186,34 +144,22 @@ const Footer = () => {
             <h4 className="text-white font-semibold mb-4">Contact Us</h4>
             <ul className="space-y-3">
               <li className="flex items-start gap-3 text-gray-400 text-sm">
-                <FaMapMarkerAlt className="text-[#00D4FF] mt-1 flex-shrink-0" />
-                <span>{getContactInfo('companyAddress', 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal')}</span>
+                <FaMapMarkerAlt className="text-[#00D4FF] mt-1" />
+                <span>{settings.companyAddress || 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal'}</span>
               </li>
               <li className="flex items-center gap-3 text-gray-400 text-sm">
-                <FaPhone className="text-[#00D4FF] flex-shrink-0" />
-                <a href={`tel:${getContactInfo('companyPhone', '9827399860')}`} className="hover:text-[#00D4FF] transition-colors">
-                  {getContactInfo('companyPhone', '9827399860')}
+                <FaPhone className="text-[#00D4FF]" />
+                <a href={`tel:${settings.companyPhone || '9827399860'}`} className="hover:text-[#00D4FF] transition-colors">
+                  {settings.companyPhone || '9827399860'}
                 </a>
               </li>
               <li className="flex items-center gap-3 text-gray-400 text-sm">
-                <FaEnvelope className="text-[#00D4FF] flex-shrink-0" />
-                <a href={`mailto:${getContactInfo('companyEmail', 'mail@riseuptech.com.np')}`} className="hover:text-[#00D4FF] transition-colors">
-                  {getContactInfo('companyEmail', 'mail@riseuptech.com.np')}
+                <FaEnvelope className="text-[#00D4FF]" />
+                <a href={`mailto:${settings.companyEmail || 'mail@riseuptech.com.np'}`} className="hover:text-[#00D4FF] transition-colors">
+                  {settings.companyEmail || 'mail@riseuptech.com.np'}
                 </a>
               </li>
             </ul>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div className="py-6 border-t border-[#00D4FF]/10">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-gray-400">
-              &copy; {new Date().getFullYear()} Riseup-Tech Software Company. All rights reserved.
-            </p>
-            <p className="text-sm text-gray-500">
-              Built with ❤️ by Riseup-Tech Team
-            </p>
           </div>
         </div>
       </div>

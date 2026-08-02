@@ -5,13 +5,12 @@ import {
   FaCog, FaSpinner, FaSave, FaGlobe, FaPalette, 
   FaShareAlt, FaEnvelope, FaGavel, FaUsers
 } from 'react-icons/fa';
-import api, { authService } from '../../services/api';
+import axios from 'axios';
+import { authService } from '../../services/api';
 
 const SettingsManager = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
   const [settings, setSettings] = useState({
     // General Settings
     siteName: 'Riseup-Tech Software Company',
@@ -54,17 +53,18 @@ const SettingsManager = () => {
 
   const fetchSettings = async () => {
     try {
-      const response = await api.get('/website/settings');
-      const data = response.data.data;
+      const token = authService.getToken();
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/website/settings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      // Merge fetched settings with default settings
+      const data = response.data.data;
       setSettings(prev => ({
         ...prev,
         ...data
       }));
     } catch (error) {
       console.error('Error fetching settings:', error);
-      setError('Failed to fetch settings');
     } finally {
       setLoading(false);
     }
@@ -75,31 +75,22 @@ const SettingsManager = () => {
       ...prev,
       [key]: value
     }));
-    // Clear messages when user makes changes
-    setSuccess('');
-    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setSuccess('');
-    setError('');
     
     try {
-      // Send all settings as an object
-      const response = await api.put('/website/settings', settings);
+      const token = authService.getToken();
+      await axios.put(`${import.meta.env.VITE_API_URL}/website/settings`, settings, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      setSuccess('Settings saved successfully!');
-      // Refresh settings to get updated values
-      await fetchSettings();
-      
-      // Auto-hide success message after 3 seconds
-      setTimeout(() => setSuccess(''), 3000);
+      alert('Settings saved successfully!');
     } catch (error) {
       console.error('Error saving settings:', error);
-      setError(error.response?.data?.message || 'Error saving settings');
-      setTimeout(() => setError(''), 3000);
+      alert('Error saving settings');
     } finally {
       setSaving(false);
     }
@@ -121,18 +112,6 @@ const SettingsManager = () => {
           <p className="text-gray-400 text-sm">Configure your website</p>
         </div>
       </div>
-
-      {/* Success/Error Messages */}
-      {success && (
-        <div className="bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-3 rounded-lg mb-4">
-          {success}
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* General Settings */}
@@ -206,68 +185,65 @@ const SettingsManager = () => {
             <FaShareAlt className="text-[#00D4FF]" />
             Social Media
           </h3>
-          <p className="text-sm text-gray-400 mb-4">
-            Enter the full URLs for your social media profiles. Leave empty to hide.
-          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Facebook</label>
               <input
                 type="text"
-                value={settings.facebook || ''}
+                value={settings.facebook}
                 onChange={(e) => handleChange('facebook', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                placeholder="https://facebook.com/yourpage"
+                placeholder="https://facebook.com/..."
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Twitter</label>
               <input
                 type="text"
-                value={settings.twitter || ''}
+                value={settings.twitter}
                 onChange={(e) => handleChange('twitter', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                placeholder="https://twitter.com/yourhandle"
+                placeholder="https://twitter.com/..."
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">LinkedIn</label>
               <input
                 type="text"
-                value={settings.linkedin || ''}
+                value={settings.linkedin}
                 onChange={(e) => handleChange('linkedin', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                placeholder="https://linkedin.com/company/yourcompany"
+                placeholder="https://linkedin.com/..."
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">GitHub</label>
               <input
                 type="text"
-                value={settings.github || ''}
+                value={settings.github}
                 onChange={(e) => handleChange('github', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                placeholder="https://github.com/yourusername"
+                placeholder="https://github.com/..."
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Instagram</label>
               <input
                 type="text"
-                value={settings.instagram || ''}
+                value={settings.instagram}
                 onChange={(e) => handleChange('instagram', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                placeholder="https://instagram.com/yourhandle"
+                placeholder="https://instagram.com/..."
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">YouTube</label>
               <input
                 type="text"
-                value={settings.youtube || ''}
+                value={settings.youtube}
                 onChange={(e) => handleChange('youtube', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                placeholder="https://youtube.com/yourchannel"
+                placeholder="https://youtube.com/..."
               />
             </div>
           </div>
@@ -284,7 +260,7 @@ const SettingsManager = () => {
               <label className="block text-sm font-medium text-gray-400 mb-1">Meta Title</label>
               <input
                 type="text"
-                value={settings.metaTitle || ''}
+                value={settings.metaTitle}
                 onChange={(e) => handleChange('metaTitle', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
               />
@@ -292,7 +268,7 @@ const SettingsManager = () => {
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Meta Description</label>
               <textarea
-                value={settings.metaDescription || ''}
+                value={settings.metaDescription}
                 onChange={(e) => handleChange('metaDescription', e.target.value)}
                 rows="2"
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
@@ -302,7 +278,7 @@ const SettingsManager = () => {
               <label className="block text-sm font-medium text-gray-400 mb-1">Meta Keywords</label>
               <input
                 type="text"
-                value={settings.metaKeywords || ''}
+                value={settings.metaKeywords}
                 onChange={(e) => handleChange('metaKeywords', e.target.value)}
                 className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
                 placeholder="keyword1, keyword2, keyword3"
@@ -323,13 +299,13 @@ const SettingsManager = () => {
               <div className="flex items-center gap-3">
                 <input
                   type="color"
-                  value={settings.primaryColor || '#00D4FF'}
+                  value={settings.primaryColor}
                   onChange={(e) => handleChange('primaryColor', e.target.value)}
                   className="w-12 h-12 rounded-lg cursor-pointer border border-gray-700"
                 />
                 <input
                   type="text"
-                  value={settings.primaryColor || '#00D4FF'}
+                  value={settings.primaryColor}
                   onChange={(e) => handleChange('primaryColor', e.target.value)}
                   className="flex-1 px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
                 />
@@ -340,13 +316,13 @@ const SettingsManager = () => {
               <div className="flex items-center gap-3">
                 <input
                   type="color"
-                  value={settings.secondaryColor || '#7C3AED'}
+                  value={settings.secondaryColor}
                   onChange={(e) => handleChange('secondaryColor', e.target.value)}
                   className="w-12 h-12 rounded-lg cursor-pointer border border-gray-700"
                 />
                 <input
                   type="text"
-                  value={settings.secondaryColor || '#7C3AED'}
+                  value={settings.secondaryColor}
                   onChange={(e) => handleChange('secondaryColor', e.target.value)}
                   className="flex-1 px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
                 />
