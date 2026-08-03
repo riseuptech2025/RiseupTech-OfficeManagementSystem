@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 const notificationService = require('../services/notificationService');
 
 // @desc    Get all users
@@ -57,11 +58,14 @@ const createUser = async (req, res) => {
       isActive: true,
     });
 
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
     await notificationService.notifyUserCreation(user, req.user.name);
 
     res.status(201).json({
       success: true,
-      data: user,
+      data: userResponse,
     });
   } catch (error) {
     console.error('Create user error:', error);
@@ -104,16 +108,10 @@ const getUser = async (req, res) => {
 // @access  Private (Admin only)
 const updateUser = async (req, res) => {
   try {
-    // Remove password from update if not provided
-    if (!req.body.password) {
-      delete req.body.password;
-    }
+    const { id } = req.params;
+    const { name, email, role, department, phone, age, password, isActive } = req.body;
 
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    }).select('-password');
-
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -121,17 +119,77 @@ const updateUser = async (req, res) => {
       });
     }
 
+    const currentUserLevel = getUserRoleLevel(req.user.role);
+    const targetUserLevel = getUserRoleLevel(user.role);
+
+    if (currentUserLevel < targetUserLevel) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to update this user',
+      });
+    }
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (role) user.role = role;
+    if (department) user.department = department;
+    if (phone) user.phone = phone;
+    if (age !== undefined && age !== '') user.age = parseInt(age, 10);
+    if (isActive !== undefined) user.isActive = isActive;
+
+    if (password && password.trim() !== '') {
+      if (password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password must be at least 6 characters long',
+        });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+
+      await notificationService.createNotification({
+        recipient: user._id,
+        sender: req.user.id,
+        senderName: req.user.name,
+        type: 'system_alert',
+        title: '🔐 Password Updated by Admin',
+        message: `Your password has been updated by ${req.user.name}. If you did not request this, please contact support immediately.`,
+        priority: 'high',
+        link: '/profile',
+      });
+    }
+
+    await user.save();
+
+    const updatedUser = await User.findById(id).select('-password');
+
     res.status(200).json({
       success: true,
-      data: user,
+      data: updatedUser,
+      message: password ? 'User updated and password changed successfully' : 'User updated successfully',
     });
   } catch (error) {
     console.error('Update user error:', error);
     res.status(400).json({
       success: false,
-      message: error.message,
+      message: error.message || 'Failed to update user',
     });
   }
+};
+
+const getUserRoleLevel = (role) => {
+  const roleLevels = {
+    super_admin: 4,
+    ceo: 4,
+    founder: 4,
+    coo: 3,
+    accountant: 3,
+    admin: 3,
+    hr_manager: 2,
+    staff: 1,
+  };
+  return roleLevels[role] || 0;
 };
 
 // @desc    Delete user
