@@ -1,6 +1,7 @@
+// admin-frontend/src/pages/LoginPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   FaEnvelope, 
   FaLock, 
@@ -35,6 +36,13 @@ const LoginPage = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    // Check if already logged in
+    if (authService.isAuthenticated()) {
+      navigate('/home');
+    }
+  }, [navigate]);
+
+  useEffect(() => {
     const handleMouseMove = (e) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
     };
@@ -55,10 +63,23 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
+      console.log('🔐 Submitting login...');
       await authService.login(formData);
+      console.log('✅ Login successful, navigating to home...');
       navigate('/home');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      console.error('❌ Login error:', err);
+      
+      // Show user-friendly error message
+      if (err.response?.status === 401) {
+        setError('Invalid email or password. Please try again.');
+      } else if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.message === 'Network Error') {
+        setError('Network error. Please check your connection and try again.');
+      } else {
+        setError('Login failed. Please check your credentials and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -108,11 +129,6 @@ const LoginPage = () => {
               <path d="M 80 0 L 0 0 0 80" fill="none" stroke="rgba(0, 212, 255, 0.03)" strokeWidth="1" />
               <circle cx="0" cy="0" r="1.5" fill="rgba(0, 212, 255, 0.05)" />
             </pattern>
-            <linearGradient id="gradient-glow" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#00D4FF" stopOpacity="0.3" />
-              <stop offset="50%" stopColor="#7C3AED" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#06D6A0" stopOpacity="0.3" />
-            </linearGradient>
           </defs>
           <rect width="100%" height="100%" fill="url(#tech-grid)" />
         </svg>
@@ -144,30 +160,6 @@ const LoginPage = () => {
           <tech.Icon className="w-12 h-12" />
         </motion.div>
       ))}
-
-      {/* Animated circuit lines */}
-      <div className="absolute inset-0 pointer-events-none">
-        <svg className="absolute inset-0 w-full h-full opacity-5">
-          <path d="M0,200 Q100,100 200,200 T400,200 T600,200" stroke="#00D4FF" strokeWidth="0.5" fill="none">
-            <animate attributeName="d" dur="20s" repeatCount="indefinite" 
-              values="M0,200 Q100,100 200,200 T400,200 T600,200;
-                      M0,200 Q100,300 200,200 T400,200 T600,200;
-                      M0,200 Q100,100 200,200 T400,200 T600,200" />
-          </path>
-          <path d="M0,400 Q150,500 300,400 T500,400 T700,400" stroke="#7C3AED" strokeWidth="0.5" fill="none">
-            <animate attributeName="d" dur="25s" repeatCount="indefinite" 
-              values="M0,400 Q150,500 300,400 T500,400 T700,400;
-                      M0,400 Q150,300 300,400 T500,400 T700,400;
-                      M0,400 Q150,500 300,400 T500,400 T700,400" />
-          </path>
-          <path d="M0,600 Q200,700 400,600 T600,600 T800,600" stroke="#06D6A0" strokeWidth="0.5" fill="none">
-            <animate attributeName="d" dur="18s" repeatCount="indefinite" 
-              values="M0,600 Q200,700 400,600 T600,600 T800,600;
-                      M0,600 Q200,500 400,600 T600,600 T800,600;
-                      M0,600 Q200,700 400,600 T600,600 T800,600" />
-          </path>
-        </svg>
-      </div>
 
       {/* Interactive glow follow mouse */}
       <div 
@@ -238,17 +230,6 @@ const LoginPage = () => {
               >
                 Secure authentication required
               </motion.p>
-              <motion.div
-                className="mt-3 flex justify-center"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5, type: 'spring' }}
-              >
-                <span className="inline-flex items-center gap-2 bg-[#00D4FF]/10 text-[#00D4FF] text-xs px-4 py-1.5 rounded-full font-mono border border-[#00D4FF]/20 backdrop-blur-sm">
-                  <FaShieldAlt className="w-3 h-3" />
-                  ENCRYPTED CONNECTION
-                </span>
-              </motion.div>
             </motion.div>
 
             <AnimatePresence mode="wait">
@@ -292,9 +273,6 @@ const LoginPage = () => {
                     className="w-full pl-10 pr-4 py-3 bg-[#0A0A0F]/80 text-white border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00D4FF] focus:border-transparent transition-all duration-300 placeholder:text-gray-600 border-gray-800/50 focus:border-[#00D4FF] font-mono"
                     placeholder="employee@riseup.tech"
                   />
-                  <div className={`absolute inset-0 rounded-xl pointer-events-none border-2 transition-all duration-300 ${
-                    focusedField === 'email' ? 'border-[#00D4FF]/30 scale-105' : 'border-transparent'
-                  }`}></div>
                 </div>
               </motion.div>
 
@@ -333,12 +311,6 @@ const LoginPage = () => {
                       <FaEye className="h-5 w-5" />
                     )}
                   </button>
-                  <div className={`absolute inset-0 rounded-xl pointer-events-none border-2 transition-all duration-300 ${
-                    focusedField === 'password' ? 'border-[#00D4FF]/30 scale-105' : 'border-transparent'
-                  }`}></div>
-                </div>
-                <div className="mt-2 flex justify-end">
-                  <span className="text-xs text-gray-500 font-mono">MIN 6 CHARACTERS</span>
                 </div>
               </motion.div>
 
@@ -363,10 +335,6 @@ const LoginPage = () => {
                       </>
                     )}
                   </span>
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-[#7C3AED] to-[#00D4FF] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    initial={false}
-                  />
                 </motion.button>
               </motion.div>
             </form>
