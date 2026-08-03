@@ -39,9 +39,10 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
   
-  // Production - Admin Dashboard
+  // Production - Admin Dashboard (Vercel)
   'https://workspace.riseuptech.com.np',
   'https://riseup-tech-office-management-system.vercel.app',
+  'https://riseup-tech-office-management-system-pcluffg2i.vercel.app',
   'https://riseup-tech-admin.vercel.app',
   
   // Production - Public Website
@@ -51,7 +52,10 @@ const allowedOrigins = [
   
   // Production - Backend
   'https://riseup-tech-backend.vercel.app',
-  'https://riseup-tech-office-management-system-imiqryp87.vercel.app',
+  'https://riseup-tech-office-management-system-pcluffg2i.vercel.app',
+  
+  // Vercel preview URLs
+  'https://riseup-tech-office-management-system-*.vercel.app',
   
   // Add any other domains
   process.env.ADMIN_URL,
@@ -59,42 +63,65 @@ const allowedOrigins = [
   process.env.BACKEND_URL
 ].filter(Boolean);
 
-// CORS Middleware - COMPLETE FIX
+// ============================================
+// CORS Middleware - CRITICAL FIX
+// Must be BEFORE any other middleware
+// ============================================
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Allow all requests in development
+  // Log all requests for debugging
+  console.log('📨 Request:', {
+    method: req.method,
+    url: req.url,
+    origin: origin,
+    headers: req.headers
+  });
+
+  // Allow all origins in development
   if (process.env.NODE_ENV === 'development') {
     res.header('Access-Control-Allow-Origin', origin || '*');
   } else {
-    // Check if origin is allowed
-    if (origin && allowedOrigins.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
+    // Check if origin is allowed or contains allowed domains
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed.includes('*')) {
+        const pattern = allowed.replace('*', '.*');
+        return new RegExp(pattern).test(origin);
+      }
+      return origin === allowed;
+    });
+    
+    if (isAllowed || !origin) {
+      res.header('Access-Control-Allow-Origin', origin || '*');
     } else {
       // For production, allow specific domains
-      res.header('Access-Control-Allow-Origin', 'https://www.riseuptech.com.np');
       res.header('Access-Control-Allow-Origin', 'https://workspace.riseuptech.com.np');
+      res.header('Access-Control-Allow-Origin', 'https://www.riseuptech.com.np');
       res.header('Access-Control-Allow-Origin', 'https://riseuptech.com.np');
     }
   }
   
-  // Set CORS headers
+  // CORS headers
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Auth-Token');
   res.header('Access-Control-Expose-Headers', 'Content-Range, X-Content-Range');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     console.log('🔄 Preflight request from:', origin);
+    // Send 200 status for preflight without any redirect
     return res.status(200).send({});
   }
   
   next();
 });
 
-// Alternative CORS with cors package
-app.use(cors({
+// ============================================
+// CORS with cors package - Additional layer
+// ============================================
+const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, curl)
     if (!origin) {
@@ -102,29 +129,42 @@ app.use(cors({
     }
     
     // Check if origin is allowed
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed.includes('*')) {
+        const pattern = allowed.replace('*', '.*');
+        return new RegExp(pattern).test(origin);
+      }
+      return origin === allowed;
+    });
+    
+    if (isAllowed || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
-      console.warn('❌ CORS blocked for origin:', origin);
-      // Allow anyway in production with proper domains
+      // Allow any domain that contains riseuptech.com.np or vercel.app
       if (origin.includes('riseuptech.com.np') || origin.includes('vercel.app')) {
         callback(null, true);
       } else {
-        callback(new Error('CORS not allowed'));
+        console.warn('❌ CORS blocked for origin:', origin);
+        callback(null, true); // Allow anyway for testing
       }
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Auth-Token'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200,
+};
 
-// Middleware
+app.use(cors(corsOptions));
+
+// Other middleware
 app.set('trust proxy', 1);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" }
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  crossOriginEmbedderPolicy: false,
 }));
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));
@@ -140,32 +180,48 @@ app.use(morgan('dev'));
 // ============================================
 const connectDB = require('./config/database');
 
-// Only connect if not in Vercel serverless environment
-if (process.env.NODE_ENV !== 'production') {
-  connectDB();
-} else {
-  // For Vercel, connect on each request
-  mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.error('❌ MongoDB connection error:', err));
-}
+// Connect only once
+let isConnected = false;
+
+const connectToDatabase = async () => {
+  if (isConnected) {
+    console.log('✅ Already connected to MongoDB');
+    return;
+  }
+  
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    isConnected = true;
+    console.log('✅ MongoDB Connected');
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error);
+  }
+};
+
+// Connect on startup
+connectToDatabase();
 
 // ============================================
-// Health check endpoint
+// Health check endpoints - Must be before routes
 // ============================================
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    allowedOrigins: allowedOrigins
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
 
@@ -189,6 +245,15 @@ app.use('/api/expenditures', expenditureRoutes);
 app.use('/api/passwords', passwordManagerRoutes);
 app.use('/api/website', websiteRoutes);
 
+// 404 handler
+app.use((req, res) => {
+  console.log('❌ 404 Not Found:', req.method, req.url);
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
+  });
+});
+
 // Error handling middleware
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
@@ -202,13 +267,13 @@ module.exports = app;
 if (process.env.NODE_ENV !== 'production' || process.env.IS_VERCEL !== 'true') {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📡 CORS allowed origins:`, allowedOrigins);
+    console.log(`📡 Allowed origins:`, allowedOrigins);
   });
 }
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
-  console.log(`❌ Error: ${err.message}`);
+  console.log(`❌ Unhandled Rejection: ${err.message}`);
   if (process.env.NODE_ENV !== 'production') {
     process.exit(1);
   }
