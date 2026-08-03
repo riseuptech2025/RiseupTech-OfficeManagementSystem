@@ -117,10 +117,7 @@ const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`CORS allowed origins:`, allowedOrigins);
-});
+module.exports = app;
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
