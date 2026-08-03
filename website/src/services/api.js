@@ -1,31 +1,43 @@
+// website-frontend/src/services/api.js
 import axios from 'axios';
 
 // ============================================
 // API URL Configuration
 // ============================================
-const getApiUrl = () => {
+const getApiBaseUrl = () => {
   if (import.meta.env.PROD) {
     return import.meta.env.VITE_API_URL || 'https://riseup-tech-backend.vercel.app/api';
   }
   return '/api';
 };
 
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🔧 Website API Base URL:', API_BASE_URL);
+
 const api = axios.create({
-  baseURL: getApiUrl(),
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
   timeout: 30000,
+  withCredentials: true,
 });
 
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    console.log('Public API Request:', config.method.toUpperCase(), config.url);
+    console.log('📤 Website API Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullUrl: config.baseURL + config.url,
+    });
     return config;
   },
   (error) => {
-    console.error('Request error:', error);
+    console.error('❌ Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -33,11 +45,18 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    console.log('Public API Response:', response.status, response.config.url);
+    console.log('📥 Website API Response:', {
+      status: response.status,
+      url: response.config.url,
+    });
     return response;
   },
   (error) => {
-    console.error('API Error:', error.response?.status, error.response?.data);
+    console.error('❌ Website API Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
     return Promise.reject(error);
   }
 );
@@ -45,7 +64,6 @@ api.interceptors.response.use(
 // ============================================
 // WEBSITE SERVICES
 // ============================================
-
 export const websiteService = {
   // Pages
   getPageBySlug: async (slug) => {
@@ -53,7 +71,7 @@ export const websiteService = {
       const response = await api.get(`/website/pages/slug/${slug}`);
       return response.data;
     } catch (error) {
-      console.error('Get page by slug error:', error);
+      console.error('❌ Get page by slug error:', error);
       throw error;
     }
   },
@@ -64,7 +82,7 @@ export const websiteService = {
       const response = await api.get('/website/blogs', { params });
       return response.data;
     } catch (error) {
-      console.error('Get blogs error:', error);
+      console.error('❌ Get blogs error:', error);
       throw error;
     }
   },
@@ -74,7 +92,7 @@ export const websiteService = {
       const response = await api.get(`/website/blogs/slug/${slug}`);
       return response.data;
     } catch (error) {
-      console.error('Get blog by slug error:', error);
+      console.error('❌ Get blog by slug error:', error);
       throw error;
     }
   },
@@ -85,7 +103,7 @@ export const websiteService = {
       const response = await api.get('/website/services', { params });
       return response.data;
     } catch (error) {
-      console.error('Get services error:', error);
+      console.error('❌ Get services error:', error);
       throw error;
     }
   },
@@ -95,7 +113,7 @@ export const websiteService = {
       const response = await api.get(`/website/services/slug/${slug}`);
       return response.data;
     } catch (error) {
-      console.error('Get service by slug error:', error);
+      console.error('❌ Get service by slug error:', error);
       throw error;
     }
   },
@@ -106,7 +124,7 @@ export const websiteService = {
       const response = await api.get('/website/team');
       return response.data;
     } catch (error) {
-      console.error('Get team error:', error);
+      console.error('❌ Get team error:', error);
       throw error;
     }
   },
@@ -117,7 +135,7 @@ export const websiteService = {
       const response = await api.get('/website/testimonials');
       return response.data;
     } catch (error) {
-      console.error('Get testimonials error:', error);
+      console.error('❌ Get testimonials error:', error);
       throw error;
     }
   },
@@ -128,7 +146,7 @@ export const websiteService = {
       const response = await api.get('/website/careers', { params });
       return response.data;
     } catch (error) {
-      console.error('Get careers error:', error);
+      console.error('❌ Get careers error:', error);
       throw error;
     }
   },
@@ -138,7 +156,7 @@ export const websiteService = {
       const response = await api.get(`/website/careers/slug/${slug}`);
       return response.data;
     } catch (error) {
-      console.error('Get career by slug error:', error);
+      console.error('❌ Get career by slug error:', error);
       throw error;
     }
   },
@@ -161,7 +179,7 @@ export const websiteService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Apply for career error:', error);
+      console.error('❌ Apply for career error:', error);
       throw error;
     }
   },
@@ -172,7 +190,7 @@ export const websiteService = {
       const response = await api.post('/website/contacts', data);
       return response.data;
     } catch (error) {
-      console.error('Submit contact error:', error);
+      console.error('❌ Submit contact error:', error);
       throw error;
     }
   },
@@ -183,7 +201,7 @@ export const websiteService = {
       const response = await api.get('/website/settings');
       return response.data;
     } catch (error) {
-      console.error('Get settings error:', error);
+      console.error('❌ Get settings error:', error);
       throw error;
     }
   },

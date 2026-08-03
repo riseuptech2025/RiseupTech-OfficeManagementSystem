@@ -3,19 +3,26 @@ import axios from 'axios';
 // ============================================
 // API URL Configuration
 // ============================================
-const getApiUrl = () => {
+const getApiBaseUrl = () => {
   if (import.meta.env.PROD) {
     return import.meta.env.VITE_API_URL || 'https://riseup-tech-backend.vercel.app/api';
   }
   return '/api';
 };
 
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🔧 API Base URL:', API_BASE_URL);
+console.log('🔧 Environment:', import.meta.env.MODE);
+
 const api = axios.create({
-  baseURL: getApiUrl(),
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout for file uploads
+  timeout: 30000,
+  withCredentials: true,
 });
 
 // ============================================
@@ -27,20 +34,19 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    // Log request for debugging (remove in production)
-    if (config.data && !(config.data instanceof FormData)) {
-      console.log('API Request:', config.method.toUpperCase(), config.url, config.data);
-    } else if (config.data instanceof FormData) {
-      console.log('API Request:', config.method.toUpperCase(), config.url, 'FormData');
-    } else {
-      console.log('API Request:', config.method.toUpperCase(), config.url);
-    }
-    
+
+    console.log('📤 API Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullUrl: config.baseURL + config.url,
+      headers: config.headers,
+    });
+
     return config;
   },
   (error) => {
-    console.error('Request error:', error);
+    console.error('❌ Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -50,23 +56,33 @@ api.interceptors.request.use(
 // ============================================
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url);
+    console.log('📥 API Response:', {
+      status: response.status,
+      url: response.config.url,
+      data: response.data,
+    });
     return response;
   },
   (error) => {
-    console.error('API Error:', error.response?.status, error.response?.data);
-    
-    // Handle 401 Unauthorized - Token expired
+    console.error('❌ API Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+      config: error.config,
+    });
+
     if (error.response?.status === 401) {
       const token = localStorage.getItem('token');
       if (token) {
-        console.log('Token expired, logging out...');
+        console.log('🔑 Token expired, logging out...');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
