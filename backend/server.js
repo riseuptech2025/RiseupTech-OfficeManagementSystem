@@ -25,14 +25,14 @@ const expenditureRoutes = require('./routes/expenditureRoutes');
 const passwordManagerRoutes = require('./routes/passwordManagerRoutes');
 const websiteRoutes = require('./routes/websiteRoutes');
 
-// Connect to MongoDB
+// Import database connection
 const connectDB = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================
-// CORS Configuration
+// CORS Configuration - Allow Vercel domains
 // ============================================
 const allowedOrigins = [
   'http://localhost:5173',
@@ -55,16 +55,16 @@ app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     
-    // Allow any vercel.app domain in production
-    if (process.env.NODE_ENV === 'production' && origin.includes('vercel.app')) {
+    // Allow any vercel.app domain
+    if (origin.includes('vercel.app')) {
       return callback(null, true);
     }
     
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       console.warn('CORS blocked for origin:', origin);
-      callback(null, true); // Allow all in development
+      callback(null, true);
     }
   },
   credentials: true,
@@ -74,7 +74,7 @@ app.use(cors({
 }));
 
 // ============================================
-// Security Middleware - Relax CSP for Vercel
+// Security Middleware
 // ============================================
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -86,29 +86,52 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:", "http:"],
       connectSrc: ["'self'", "https://vercel.live"],
       fontSrc: ["'self'", "https:", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'self'", "https://vercel.live"]
+      objectSrc: ["'none'"]
     }
   }
 }));
 
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: '50mb',
-  parameterLimit: 100000
-}));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Only use morgan in development
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// ============================================
+// Middleware to ensure DB connection
+// ============================================
+app.use(async (req, res, next) => {
+  try {
+    // Connect to database if not already connected
+    if (!mongoose.connection.readyState) {
+      console.log('🔄 Connecting to database for request:', req.path);
+      await connectDB();
+    }
+    next();
+  } catch (error) {
+    console.error('❌ Database connection middleware error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database connection error'
+    });
+  }
+});
+
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  try {
+    const dbState = mongoose.connection.readyState;
+    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+    res.status(200).json({
+      status: 'OK',
+      database: states[dbState] || 'unknown',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'Error', message: error.message });
+  }
 });
 
 // API Routes
@@ -134,23 +157,20 @@ const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
 // ============================================
-// Connect to Database (only if not in Vercel serverless)
+// For Vercel - Export the app
 // ============================================
-if (process.env.NODE_ENV !== 'production') {
-  connectDB();
+if (process.env.NODE_ENV === 'production') {
+  // Connect to database once when the serverless function starts
+  connectDB().catch(console.error);
 }
-
-// ============================================
-// Export for Vercel
-// ============================================
-module.exports = app;
 
 // Start server only if not in Vercel serverless environment
 if (require.main === module) {
   connectDB().then(() => {
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
-      console.log(`CORS allowed origins:`, allowedOrigins);
     });
   });
 }
+
+module.exports = app;
