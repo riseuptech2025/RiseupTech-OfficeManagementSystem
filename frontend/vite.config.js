@@ -1,7 +1,6 @@
-// admin-frontend/vite.config.js
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [
@@ -16,13 +15,5 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
-  },
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-  },
-  // Important for environment variables
-  define: {
-    'process.env': {}
   }
-});
+})
