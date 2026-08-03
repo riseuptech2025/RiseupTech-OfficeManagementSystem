@@ -1,4 +1,4 @@
-// server.js (Main Backend - Port 5000)
+// backend/server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -25,44 +25,35 @@ const expenditureRoutes = require('./routes/expenditureRoutes');
 const passwordManagerRoutes = require('./routes/passwordManagerRoutes');
 const websiteRoutes = require('./routes/websiteRoutes');
 
-// Connect to MongoDB
-const connectDB = require('./config/database');
-connectDB();
-
-
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================
-// FIXED: CORS Configuration - Allow multiple origins
+// CORS Configuration - Allow all origins in production
 // ============================================
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
-  'http://192.168.18.249:5173',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-
-  // Production domains
-  'https://www.riseuptech.com.np',   // <-- ADD THIS
-  'https://riseuptech.com.np',
+  'https://riseup-tech-admin.vercel.app',
+  'https://riseup-tech-website.vercel.app',
+  'https://riseup-tech-backend.vercel.app',
   'https://workspace.riseuptech.com.np',
-  process.env.FRONTEND_URL,
-  process.env.SSO_FRONTEND_URL
+  'https://www.riseuptech.com.np',
+  'https://riseuptech.com.np',
+  process.env.ADMIN_URL,
+  process.env.WEBSITE_URL,
+  process.env.BACKEND_URL
 ].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       console.warn('CORS blocked for origin:', origin);
-      callback(null, true); // Allow all in development
+      callback(null, true);
     }
   },
   credentials: true,
@@ -71,12 +62,8 @@ app.use(cors({
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
-// ============================================
-// Trust proxy for secure cookies
-// ============================================
-app.set('trust proxy', 1);
-
 // Middleware
+app.set('trust proxy', 1);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
@@ -89,12 +76,33 @@ app.use(express.urlencoded({
 }));
 app.use(morgan('dev'));
 
+// ============================================
+// Connect to MongoDB
+// ============================================
+const connectDB = require('./config/database');
+
+// Only connect if not in Vercel serverless environment
+if (process.env.NODE_ENV !== 'production' || process.env.IS_VERCEL !== 'true') {
+  connectDB();
+} else {
+  // For Vercel, connect on each request
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('MongoDB Connected'))
+    .catch(err => console.error('MongoDB connection error:', err));
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
+  });
 });
 
+// ============================================
 // Routes
+// ============================================
 app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -116,14 +124,23 @@ app.use('/api/website', websiteRoutes);
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`CORS allowed origins:`, allowedOrigins);
-});
+// ============================================
+// Export for Vercel
+// ============================================
+module.exports = app;
+
+// Start server (only if not in Vercel)
+if (process.env.NODE_ENV !== 'production' || process.env.IS_VERCEL !== 'true') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`CORS allowed origins:`, allowedOrigins);
+  });
+}
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.log(`Error: ${err.message}`);
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'production') {
+    process.exit(1);
+  }
 });

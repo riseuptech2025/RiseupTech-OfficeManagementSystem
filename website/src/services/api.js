@@ -1,9 +1,17 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+// ============================================
+// API URL Configuration
+// ============================================
+const getApiUrl = () => {
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_API_URL || 'https://riseup-tech-backend.vercel.app/api';
+  }
+  return '/api';
+};
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: getApiUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
