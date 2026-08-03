@@ -17,9 +17,13 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    console.log('🔐 Login attempt:', { email, passwordLength: password?.length });
+    console.log('🔐 Login attempt:', { 
+      email, 
+      passwordLength: password?.length,
+      timestamp: new Date().toISOString()
+    });
 
-    // Validate email & password
+    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -27,7 +31,9 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Check for user
+    // ============================================
+    // Check if user exists with +password field
+    // ============================================
     const user = await User.findOne({ email }).select('+password');
     
     if (!user) {
@@ -49,18 +55,23 @@ const loginUser = async (req, res) => {
 
     // Check if user is active
     if (!user.isActive) {
+      console.log('❌ User inactive:', email);
       return res.status(401).json({
         success: false,
         message: 'Your account has been deactivated. Please contact admin.',
       });
     }
 
-    // Check if password matches using bcrypt directly
+    // ============================================
+    // Check password using bcrypt directly
+    // ============================================
+    console.log('🔐 Comparing password...');
     const isPasswordMatch = await bcrypt.compare(password, user.password);
     
     console.log('🔐 Password match result:', isPasswordMatch);
 
     if (!isPasswordMatch) {
+      console.log('❌ Password mismatch for user:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
@@ -74,6 +85,8 @@ const loginUser = async (req, res) => {
 
     // Generate token
     const token = generateToken(user._id);
+
+    console.log('✅ Login successful for:', email);
 
     res.status(200).json({
       success: true,

@@ -1,7 +1,7 @@
 // config/database.js
 const mongoose = require('mongoose');
 
-// Cache the connection globally
+// Cache the connection globally for serverless environment
 let cached = global.mongoose;
 
 if (!cached) {
@@ -16,12 +16,16 @@ const connectDB = async () => {
   }
 
   if (!cached.promise) {
+    // ============================================
+    // Connection options - IMPORTANT: bufferCommands is true by default
+    // ============================================
     const opts = {
-      bufferCommands: false,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       family: 4,
+      // bufferCommands: true - this is the default, allows queuing
+      // Do NOT set bufferCommands: false
     };
 
     console.log('🔄 Connecting to MongoDB...');
@@ -30,6 +34,8 @@ const connectDB = async () => {
     cached.promise = mongoose.connect(process.env.MONGODB_URI, opts)
       .then((mongoose) => {
         console.log('✅ MongoDB Connected successfully');
+        console.log(`📊 Connection state: ${mongoose.connection.readyState}`);
+        console.log(`📊 Database Name: ${mongoose.connection.db.databaseName}`);
         return mongoose;
       })
       .catch((error) => {
@@ -49,4 +55,16 @@ const connectDB = async () => {
   return cached.conn;
 };
 
-module.exports = connectDB;
+// Helper to check connection state
+const getConnectionState = () => {
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  const state = mongoose.connection.readyState;
+  return states[state] || 'unknown';
+};
+
+// Helper to check if connected
+const isConnected = () => {
+  return mongoose.connection.readyState === 1;
+};
+
+module.exports = { connectDB, getConnectionState, isConnected };

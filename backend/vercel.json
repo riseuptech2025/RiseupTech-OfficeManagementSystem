@@ -21,6 +21,7 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "MONGODB_URI": "mongodb+srv://ramanand_db_user:LETxqT5lPyczvr37@riseup-tech.8om9rmt.mongodb.net/?appName=Riseup-tech"
   }
 }

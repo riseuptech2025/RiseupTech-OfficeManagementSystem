@@ -26,13 +26,13 @@ const passwordManagerRoutes = require('./routes/passwordManagerRoutes');
 const websiteRoutes = require('./routes/websiteRoutes');
 
 // Import database connection
-const connectDB = require('./config/database');
+const { connectDB, getConnectionState, isConnected } = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================
-// CORS Configuration - Allow Vercel domains
+// CORS Configuration - Complete
 // ============================================
 const allowedOrigins = [
   'http://localhost:5173',
@@ -44,7 +44,6 @@ const allowedOrigins = [
   'https://www.riseuptech.com.np',
   'https://riseuptech.com.np',
   'https://workspace.riseuptech.com.np',
-  // Vercel deployment URLs
   'https://riseup-tech-office-management-syste.vercel.app',
   'https://*.vercel.app',
   process.env.FRONTEND_URL,
@@ -54,18 +53,10 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    
-    // Allow any vercel.app domain
-    if (origin.includes('vercel.app')) {
-      return callback(null, true);
-    }
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn('CORS blocked for origin:', origin);
-      callback(null, true);
-    }
+    if (origin.includes('vercel.app')) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    console.warn('CORS blocked for origin:', origin);
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -78,17 +69,7 @@ app.use(cors({
 // ============================================
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://vercel.live"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: ["'self'", "https://vercel.live"],
-      fontSrc: ["'self'", "https:", "data:"],
-      objectSrc: ["'none'"]
-    }
-  }
+  contentSecurityPolicy: false // Disable CSP for Vercel
 }));
 
 app.use(compression());
@@ -100,41 +81,50 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // ============================================
-// Middleware to ensure DB connection
+// Database Connection Middleware
 // ============================================
 app.use(async (req, res, next) => {
   try {
-    // Connect to database if not already connected
-    if (!mongoose.connection.readyState) {
-      console.log('🔄 Connecting to database for request:', req.path);
+    // Check connection state
+    if (!isConnected()) {
+      console.log(`🔄 Connecting to DB for: ${req.method} ${req.path}`);
       await connectDB();
+      console.log(`✅ DB connected. State: ${mongoose.connection.readyState}`);
     }
     next();
   } catch (error) {
-    console.error('❌ Database connection middleware error:', error);
+    console.error('❌ DB connection middleware error:', error);
     res.status(500).json({
       success: false,
-      message: 'Database connection error'
+      message: 'Database connection error. Please try again.'
     });
   }
 });
 
-// Health check endpoint
+// ============================================
+// Health Check Endpoint
+// ============================================
 app.get('/health', async (req, res) => {
   try {
-    const dbState = mongoose.connection.readyState;
-    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+    const state = getConnectionState();
+    const connected = isConnected();
     res.status(200).json({
-      status: 'OK',
-      database: states[dbState] || 'unknown',
+      status: connected ? 'OK' : 'Connecting',
+      database: state,
+      mongodb_uri: process.env.MONGODB_URI ? '✅ Set' : '❌ Missing',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ status: 'Error', message: error.message });
+    res.status(500).json({ 
+      status: 'Error', 
+      message: error.message 
+    });
   }
 });
 
+// ============================================
 // API Routes
+// ============================================
 app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -152,24 +142,36 @@ app.use('/api/expenditures', expenditureRoutes);
 app.use('/api/passwords', passwordManagerRoutes);
 app.use('/api/website', websiteRoutes);
 
-// Error handling middleware
+// ============================================
+// Error Handler
+// ============================================
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
 // ============================================
-// For Vercel - Export the app
+// For Vercel - Connect on startup
 // ============================================
 if (process.env.NODE_ENV === 'production') {
-  // Connect to database once when the serverless function starts
-  connectDB().catch(console.error);
+  // Connect when the serverless function starts
+  connectDB().then(() => {
+    console.log('✅ Database connected on server start');
+  }).catch(err => {
+    console.error('❌ Initial DB connection failed:', err);
+  });
 }
 
-// Start server only if not in Vercel serverless environment
+// ============================================
+// Start server (local development)
+// ============================================
 if (require.main === module) {
   connectDB().then(() => {
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Database: ${getConnectionState()}`);
     });
+  }).catch(err => {
+    console.error('❌ Failed to start server:', err);
+    process.exit(1);
   });
 }
 
