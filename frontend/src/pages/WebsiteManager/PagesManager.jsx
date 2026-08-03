@@ -3,9 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaPlus, FaEdit, FaTrash, FaEye, FaSpinner, FaSearch,
-  FaFileAlt, FaSave, FaTimes
+  FaFileAlt, FaSave, FaTimes, FaShieldAlt, FaCookie, 
+  FaFileContract, FaInfoCircle, FaHandshake, FaFilter
 } from 'react-icons/fa';
-import api, { authService } from '../../services/api';
+import axios from 'axios';
+import { authService } from '../../services/api';
+import RichTextEditor from '../../components/Common/RichTextEditor';
 
 const PagesManager = () => {
   const [pages, setPages] = useState([]);
@@ -13,6 +16,7 @@ const PagesManager = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingPage, setEditingPage] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -26,14 +30,27 @@ const PagesManager = () => {
     }
   });
 
+  // Page type options
+  const pageTypes = [
+    { value: 'page', label: 'Regular Page', icon: FaFileAlt },
+    { value: 'about', label: 'About', icon: FaInfoCircle },
+    { value: 'contact', label: 'Contact', icon: FaHandshake },
+    { value: 'terms', label: 'Terms & Conditions', icon: FaFileContract },
+    { value: 'privacy', label: 'Privacy Policy', icon: FaShieldAlt },
+    { value: 'cookies', label: 'Cookies Policy', icon: FaCookie },
+  ];
+
   useEffect(() => {
     fetchPages();
   }, []);
 
   const fetchPages = async () => {
     try {
-      const response = await api.get('/website/pages');
-      setPages(response.data.data);
+      const token = authService.getToken();
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/website/pages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPages(response.data.data || []);
     } catch (error) {
       console.error('Error fetching pages:', error);
     } finally {
@@ -44,13 +61,16 @@ const PagesManager = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const token = authService.getToken();
       const url = editingPage 
-        ? `/website/pages/${editingPage._id}`
-        : '/website/pages';
+        ? `${import.meta.env.VITE_API_URL}/website/pages/${editingPage._id}`
+        : `${import.meta.env.VITE_API_URL}/website/pages`;
       
       const method = editingPage ? 'put' : 'post';
       
-      const response = await api[method](url, formData);
+      await axios[method](url, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
       setShowModal(false);
       setEditingPage(null);
@@ -77,7 +97,10 @@ const PagesManager = () => {
     if (!window.confirm('Are you sure you want to delete this page?')) return;
     
     try {
-      await api.delete(`/website/pages/${id}`);
+      const token = authService.getToken();
+      await axios.delete(`${import.meta.env.VITE_API_URL}/website/pages/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       fetchPages();
     } catch (error) {
       console.error('Error deleting page:', error);
@@ -102,11 +125,6 @@ const PagesManager = () => {
     setShowModal(true);
   };
 
-  const filteredPages = pages.filter(page =>
-    page.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    page.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const getStatusBadge = (status) => {
     const colors = {
       published: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -116,25 +134,34 @@ const PagesManager = () => {
     return colors[status] || colors.draft;
   };
 
-  const getTypeBadge = (type) => {
-    const colors = {
-      page: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      terms: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      privacy: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
-      cookies: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-      about: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
-      contact: 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-    };
-    return colors[type] || colors.page;
+  const getPageTypeLabel = (type) => {
+    const found = pageTypes.find(t => t.value === type);
+    return found ? found.label : 'Page';
   };
+
+  const getPageTypeIcon = (type) => {
+    const found = pageTypes.find(t => t.value === type);
+    return found ? <found.icon className="text-[#00D4FF]" /> : <FaFileAlt className="text-[#00D4FF]" />;
+  };
+
+  // Filter pages
+  const filteredPages = pages.filter(page => {
+    const matchesSearch = page.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         page.content.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'all' || page.type === filterType;
+    return matchesSearch && matchesType;
+  });
 
   return (
     <div>
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-white">Pages</h2>
-          <p className="text-gray-400 text-sm">Manage your website pages</p>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <FaFileAlt className="text-[#00D4FF]" />
+            All Pages
+          </h2>
+          <p className="text-gray-400 text-sm">Manage all your website pages</p>
         </div>
         <button
           onClick={() => {
@@ -160,16 +187,29 @@ const PagesManager = () => {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <input
-          type="text"
-          placeholder="Search pages..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 pl-10 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-        />
-        <FaSearch className="absolute left-3 top-3 text-gray-400" />
+      {/* Search & Filter */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <div className="flex-1 min-w-[200px] relative">
+          <input
+            type="text"
+            placeholder="Search pages..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 pl-10 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
+          />
+          <FaSearch className="absolute left-3 top-3 text-gray-400" />
+        </div>
+        
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          className="px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
+        >
+          <option value="all">All Types</option>
+          {pageTypes.map((type) => (
+            <option key={type.value} value={type.value}>{type.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Pages List */}
@@ -194,13 +234,16 @@ const PagesManager = () => {
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-white">{page.title}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getTypeBadge(page.type)}`}>
-                      {page.type}
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <span className="text-[#00D4FF]">
+                      {getPageTypeIcon(page.type)}
                     </span>
+                    <h3 className="text-lg font-semibold text-white">{page.title}</h3>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(page.status)}`}>
                       {page.status}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium border bg-[#00D4FF]/10 text-[#00D4FF] border-[#00D4FF]/20">
+                      {getPageTypeLabel(page.type)}
                     </span>
                   </div>
                   <p className="text-gray-400 text-sm line-clamp-2">{page.excerpt || page.content.substring(0, 150)}</p>
@@ -238,7 +281,7 @@ const PagesManager = () => {
         </div>
       )}
 
-      {/* Create/Edit Modal - Same as before */}
+      {/* Create/Edit Modal */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
@@ -270,6 +313,7 @@ const PagesManager = () => {
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       required
                       className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
+                      placeholder="Enter page title"
                     />
                   </div>
                   <div>
@@ -279,34 +323,39 @@ const PagesManager = () => {
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
                     >
-                      <option value="page">Page</option>
-                      <option value="about">About</option>
-                      <option value="contact">Contact</option>
-                      <option value="terms">Terms & Conditions</option>
-                      <option value="privacy">Privacy Policy</option>
-                      <option value="cookies">Cookies Policy</option>
+                      {pageTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
+                {/* Rich Text Editor for Content */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Content *</label>
-                  <textarea
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    required
-                    rows="10"
-                    className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] font-mono"
-                  />
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Content *
+                    <span className="text-xs text-gray-500 ml-2">(Use toolbar to format)</span>
+                  </label>
+                  <div className="bg-[#0A0A0F] rounded-lg border border-gray-700 overflow-hidden">
+                    <RichTextEditor
+                      value={formData.content}
+                      onChange={(content) => setFormData({ ...formData, content })}
+                      placeholder="Write your page content here..."
+                      height="350px"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Excerpt</label>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">Excerpt (Short Description)</label>
                   <textarea
                     value={formData.excerpt}
                     onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
                     rows="3"
                     className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
+                    placeholder="Brief description of this page..."
                   />
                 </div>
 
@@ -337,6 +386,7 @@ const PagesManager = () => {
                           seo: { ...formData.seo, title: e.target.value }
                         })}
                         className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
+                        placeholder="SEO Title"
                       />
                     </div>
                     <div>
@@ -349,10 +399,11 @@ const PagesManager = () => {
                         })}
                         rows="2"
                         className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
+                        placeholder="Meta description"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-400 mb-1">SEO Keywords (comma separated)</label>
+                      <label className="block text-sm font-medium text-gray-400 mb-1">SEO Keywords</label>
                       <input
                         type="text"
                         value={formData.seo?.keywords?.join(', ') || ''}

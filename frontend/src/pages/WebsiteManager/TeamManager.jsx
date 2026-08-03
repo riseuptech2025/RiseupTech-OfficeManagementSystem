@@ -1,10 +1,11 @@
 // src/pages/WebsiteManager/TeamManager.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaPlus, FaEdit, FaTrash, FaSpinner, FaSearch,
   FaUsers, FaSave, FaTimes, FaToggleOn, FaToggleOff,
-  FaFacebook, FaTwitter, FaLinkedin, FaGithub, FaInstagram
+  FaFacebook, FaTwitter, FaLinkedin, FaGithub, FaInstagram,
+  FaUpload, FaImage, FaTimesCircle
 } from 'react-icons/fa';
 import axios from 'axios';
 import { authService } from '../../services/api';
@@ -15,6 +16,10 @@ const TeamManager = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     position: '',
@@ -50,6 +55,117 @@ const TeamManager = () => {
     }
   };
 
+  // ============================================
+  // IMAGE UPLOAD TO CLOUDINARY
+  // ============================================
+  // TeamManager.jsx - Updated handleImageUpload
+
+const handleImageUpload = async (e) => {
+  const file = e.target.files[0];
+  if (!file) {
+    console.log('No file selected');
+    return;
+  }
+
+  console.log('File selected:', {
+    name: file.name,
+    type: file.type,
+    size: file.size,
+  });
+
+  // Validate file type
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+  if (!allowedTypes.includes(file.type)) {
+    alert('Please upload a valid image file (JPEG, PNG, GIF, WEBP, SVG)');
+    return;
+  }
+
+  // Validate file size (5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Image size should be less than 5MB');
+    return;
+  }
+
+  setUploadingImage(true);
+
+  try {
+    const token = authService.getToken();
+    console.log('Token exists:', !!token);
+
+    // Create FormData correctly
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('folder', 'riseup-tech/team'); // Optional: specify folder
+
+    // Log FormData contents for debugging
+    for (let pair of formData.entries()) {
+      console.log('FormData entry:', pair[0], pair[1]);
+    }
+
+    const response = await axios.post(
+      `${import.meta.env.VITE_API_URL}/website/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        },
+        // Increase timeout for large files
+        timeout: 60000,
+      }
+    );
+
+    console.log('Upload response:', response.data);
+
+    // Update form data with the uploaded image URL
+    if (response.data.success && response.data.data?.url) {
+      setFormData(prev => ({
+        ...prev,
+        image: response.data.data.url
+      }));
+      setImagePreview(response.data.data.url);
+      console.log('Image uploaded successfully:', response.data.data.url);
+    } else {
+      throw new Error('Invalid response from server');
+    }
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    
+    // More detailed error message
+    let errorMessage = 'Failed to upload image';
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+      errorMessage = error.response.data?.message || errorMessage;
+    } else if (error.request) {
+      console.error('No response received:', error.request);
+      errorMessage = 'No response from server. Please check your connection.';
+    }
+    
+    alert(errorMessage);
+  } finally {
+    setUploadingImage(false);
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+};
+
+  // ============================================
+  // REMOVE IMAGE
+  // ============================================
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      image: ''
+    }));
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -66,6 +182,7 @@ const TeamManager = () => {
       
       setShowModal(false);
       setEditingMember(null);
+      setImagePreview(null);
       setFormData({
         name: '',
         position: '',
@@ -106,6 +223,7 @@ const TeamManager = () => {
 
   const handleEdit = (member) => {
     setEditingMember(member);
+    setImagePreview(member.image || null);
     setFormData({
       name: member.name,
       position: member.position,
@@ -169,6 +287,7 @@ const TeamManager = () => {
         <button
           onClick={() => {
             setEditingMember(null);
+            setImagePreview(null);
             setFormData({
               name: '',
               position: '',
@@ -294,7 +413,7 @@ const TeamManager = () => {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal with Image Upload */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
@@ -309,7 +428,10 @@ const TeamManager = () => {
                   {editingMember ? 'Edit Team Member' : 'Add Team Member'}
                 </h3>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setImagePreview(null);
+                  }}
                   className="text-gray-400 hover:text-white transition-colors"
                 >
                   <FaTimes className="w-6 h-6" />
@@ -317,6 +439,92 @@ const TeamManager = () => {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* ============================================ */}
+                {/* IMAGE UPLOAD SECTION - NEW */}
+                {/* ============================================ */}
+                <div className="bg-[#0A0A0F]/50 rounded-xl p-4 border border-dashed border-[#00D4FF]/20">
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Profile Image
+                  </label>
+                  
+                  <div className="flex flex-col items-center gap-4">
+                    {/* Image Preview */}
+                    {imagePreview ? (
+                      <div className="relative">
+                        <img 
+                          src={imagePreview} 
+                          alt="Team member preview" 
+                          className="w-32 h-32 rounded-full object-cover border-2 border-[#00D4FF]/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                          title="Remove image"
+                        >
+                          <FaTimesCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-32 h-32 rounded-full bg-[#0A0A0F] border-2 border-dashed border-gray-600 flex flex-col items-center justify-center text-gray-500">
+                        <FaImage className="w-8 h-8 mb-2 opacity-50" />
+                        <span className="text-xs">No image</span>
+                      </div>
+                    )}
+
+                    {/* Upload Button */}
+                    <div className="flex items-center gap-3 w-full">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="image-upload"
+                      />
+                      <label
+                        htmlFor="image-upload"
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                          uploadingImage
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-[#00D4FF]/10 text-[#00D4FF] hover:bg-[#00D4FF]/20 border border-[#00D4FF]/20'
+                        }`}
+                      >
+                        {uploadingImage ? (
+                          <>
+                            <FaSpinner className="w-4 h-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <FaUpload className="w-4 h-4" />
+                            {imagePreview ? 'Change Image' : 'Upload Image'}
+                          </>
+                        )}
+                      </label>
+                      
+                      {/* Image URL Input (Fallback) */}
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={formData.image}
+                          onChange={(e) => {
+                            setFormData({ ...formData, image: e.target.value });
+                            setImagePreview(e.target.value);
+                          }}
+                          placeholder="Or paste image URL"
+                          className="w-full px-3 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+                        />
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-gray-500 text-center">
+                      Supported formats: JPEG, PNG, GIF, WEBP, SVG (Max 5MB)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Rest of the form - unchanged */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-400 mb-1">Full Name *</label>
@@ -357,17 +565,6 @@ const TeamManager = () => {
                     onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                     rows="4"
                     className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Image URL</label>
-                  <input
-                    type="text"
-                    value={formData.image}
-                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                    className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF]"
-                    placeholder="https://example.com/image.jpg"
                   />
                 </div>
 
@@ -465,14 +662,27 @@ const TeamManager = () => {
                 <div className="flex space-x-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-2 bg-gradient-to-r from-[#00D4FF] to-[#7C3AED] text-white rounded-lg hover:shadow-lg hover:shadow-[#00D4FF]/20 transition-all flex items-center justify-center gap-2"
+                    disabled={uploadingImage}
+                    className="flex-1 px-6 py-2 bg-gradient-to-r from-[#00D4FF] to-[#7C3AED] text-white rounded-lg hover:shadow-lg hover:shadow-[#00D4FF]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    <FaSave className="w-4 h-4" />
-                    {editingMember ? 'Update Member' : 'Add Member'}
+                    {uploadingImage ? (
+                      <>
+                        <FaSpinner className="w-4 h-4 animate-spin" />
+                        Uploading Image...
+                      </>
+                    ) : (
+                      <>
+                        <FaSave className="w-4 h-4" />
+                        {editingMember ? 'Update Member' : 'Add Member'}
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={() => {
+                      setShowModal(false);
+                      setImagePreview(null);
+                    }}
                     className="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
                   >
                     Cancel

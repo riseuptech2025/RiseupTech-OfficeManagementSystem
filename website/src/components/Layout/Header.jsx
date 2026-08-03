@@ -26,13 +26,12 @@ const Header = () => {
     { label: 'Home', path: '/' },
     { label: 'About', path: '/about' },
     { 
-      label: 'Services', 
-      path: '/services',
-      dropdown: [
-        { label: 'Web Development', path: '/services/web' },
-        { label: 'App Development', path: '/services/app' },
-        { label: 'Cloud Solutions', path: '/services/cloud' },
-      ]
+      label: 'Services', path: '/services',
+      // dropdown: [
+      //   { label: 'Web Development', path: '/services/web-development' },
+      //   { label: 'App Development', path: '/services/app-development' },
+      //   { label: 'Cloud Solutions', path: '/services/cloud-solutions' },
+      // ]
     },
     { label: 'Blogs', path: '/blogs' },
     { label: 'Careers', path: '/careers' },
@@ -376,58 +375,32 @@ const Header = () => {
         </AnimatePresence>
       </div>
 
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes wave {
-          0% {
-            transform: translateX(-100%) scaleY(1);
-          }
-          50% {
-            transform: translateX(0%) scaleY(1.2);
-          }
-          100% {
-            transform: translateX(100%) scaleY(1);
-          }
-        }
-        
-        @keyframes wave-delayed {
-          0% {
-            transform: translateX(-100%) scaleY(1);
-          }
-          50% {
-            transform: translateX(0%) scaleY(1.3);
-          }
-          100% {
-            transform: translateX(100%) scaleY(1);
-          }
-        }
-        
-        @keyframes bubble {
-          0% {
-            transform: translateY(0) scale(0);
-            opacity: 0;
-          }
-          20% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(-40px) scale(1);
-            opacity: 0;
-          }
-        }
-        
-        .animate-wave {
-          animation: wave 3s ease-in-out infinite;
-        }
-        
-        .animate-wave-delayed {
-          animation: wave-delayed 3s ease-in-out infinite 1.5s;
-        }
-        
-        .animate-bubble {
-          animation: bubble 2s ease-in-out infinite;
-        }
-      `}</style>
+     {/* CSS Animations - FIXED */}
+<style dangerouslySetInnerHTML={{
+  __html: `
+    @keyframes wave {
+      0% { transform: translateX(-100%) scaleY(1); }
+      50% { transform: translateX(0%) scaleY(1.2); }
+      100% { transform: translateX(100%) scaleY(1); }
+    }
+    
+    @keyframes wave-delayed {
+      0% { transform: translateX(-100%) scaleY(1); }
+      50% { transform: translateX(0%) scaleY(1.3); }
+      100% { transform: translateX(100%) scaleY(1); }
+    }
+    
+    @keyframes bubble {
+      0% { transform: translateY(0) scale(0); opacity: 0; }
+      20% { opacity: 1; }
+      100% { transform: translateY(-40px) scale(1); opacity: 0; }
+    }
+    
+    .animate-wave { animation: wave 3s ease-in-out infinite; }
+    .animate-wave-delayed { animation: wave-delayed 3s ease-in-out infinite 1.5s; }
+    .animate-bubble { animation: bubble 2s ease-in-out infinite; }
+  `
+}} />
     </header>
   );
 };

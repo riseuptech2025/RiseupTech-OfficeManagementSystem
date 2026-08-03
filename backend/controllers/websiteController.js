@@ -1391,12 +1391,9 @@ const deleteContact = async (req, res) => {
   }
 };
 
-// ============================================
-// IMAGE UPLOAD TO CLOUDINARY
-// ============================================
-
 // @desc    Upload image to Cloudinary
 // @route   POST /api/website/upload
+// @access  Private (Admin only)
 const uploadImage = async (req, res) => {
   try {
     if (!req.file) {
@@ -1406,13 +1403,18 @@ const uploadImage = async (req, res) => {
       });
     }
 
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.buffer, {
-      folder: 'riseup-tech/website',
+    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    const dataURI = `data:${req.file.mimetype};base64,${b64}`;
+
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: req.body.folder || 'riseup-tech/website',
       resource_type: 'auto',
       transformation: [
         { quality: 'auto', fetch_format: 'auto' }
-      ]
+      ],
+      public_id: `website_${Date.now()}_${Math.round(Math.random() * 1000)}`,
+      use_filename: true,
+      unique_filename: true
     });
 
     res.status(200).json({
@@ -1420,7 +1422,11 @@ const uploadImage = async (req, res) => {
       data: {
         url: result.secure_url,
         public_id: result.public_id,
-        filename: req.file.originalname
+        filename: req.file.originalname,
+        width: result.width,
+        height: result.height,
+        format: result.format,
+        bytes: result.bytes
       }
     });
   } catch (error) {

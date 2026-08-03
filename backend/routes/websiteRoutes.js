@@ -170,6 +170,6 @@ router.put('/contacts/:id/status', updateContactStatus);
 router.delete('/contacts/:id', deleteContact);
 
 // Upload - Admin
-router.post('/upload', upload.single('image'), uploadImage);
+router.post('/upload', protect, authorize('admin', 'super_admin'), upload.single('image'), uploadImage);
 
 module.exports = router;

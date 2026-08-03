@@ -49,7 +49,7 @@ const ServiceCard = ({ service, index }) => {
       
       {/* Link */}
       <Link
-        to={`/services/${service.slug}`}
+        to={service?.slug ? `/services/${service.slug}` : '/services'}
         className="inline-flex items-center gap-2 text-[#00D4FF] hover:gap-3 transition-all text-sm font-medium"
       >
         Learn More <FaArrowRight className="w-4 h-4" />

@@ -1,11 +1,14 @@
 // src/pages/WebsiteManager/BlogsManager.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaPlus, FaEdit, FaTrash, FaEye, FaSpinner, FaSearch,
-  FaBlog, FaSave, FaTimes, FaStar
+  FaBlog, FaSave, FaTimes, FaStar, FaUpload, FaImage, 
+  FaTimesCircle, FaCloudUploadAlt
 } from 'react-icons/fa';
-import api from '../../services/api';
+import axios from 'axios';
+import { authService } from '../../services/api';
+import RichTextEditor from '../../components/Common/RichTextEditor';
 
 const BlogsManager = () => {
   const [blogs, setBlogs] = useState([]);
@@ -14,6 +17,10 @@ const BlogsManager = () => {
   const [editingBlog, setEditingBlog] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+  
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -22,6 +29,7 @@ const BlogsManager = () => {
     tags: [],
     status: 'draft',
     featured: false,
+    featuredImage: '',
     seo: {
       title: '',
       description: '',
@@ -35,7 +43,10 @@ const BlogsManager = () => {
 
   const fetchBlogs = async () => {
     try {
-      const response = await api.get('/website/blogs');
+      const token = authService.getToken();
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/website/blogs`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setBlogs(response.data.data);
     } catch (error) {
       console.error('Error fetching blogs:', error);
@@ -44,19 +55,114 @@ const BlogsManager = () => {
     }
   };
 
+  // ============================================
+  // IMAGE UPLOAD TO CLOUDINARY
+  // ============================================
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please upload a valid image file (JPEG, PNG, GIF, WEBP, SVG)');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const token = authService.getToken();
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('folder', 'riseup-tech/blogs');
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/website/upload`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`
+          },
+          timeout: 60000,
+        }
+      );
+
+      if (response.data.success && response.data.data?.url) {
+        setFormData(prev => ({
+          ...prev,
+          featuredImage: response.data.data.url
+        }));
+        setImagePreview(response.data.data.url);
+        console.log('Image uploaded successfully:', response.data.data.url);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      let errorMessage = 'Failed to upload image';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      alert(errorMessage);
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      featuredImage: ''
+    }));
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // ============================================
+  // FORM HANDLING
+  // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    
     try {
+      const token = authService.getToken();
       const url = editingBlog 
-        ? `/website/blogs/${editingBlog._id}`
-        : '/website/blogs';
+        ? `${import.meta.env.VITE_API_URL}/website/blogs/${editingBlog._id}`
+        : `${import.meta.env.VITE_API_URL}/website/blogs`;
       
       const method = editingBlog ? 'put' : 'post';
       
-      await api[method](url, formData);
+      const dataToSend = {
+        ...formData,
+        tags: formData.tags || [],
+        seo: {
+          title: formData.seo?.title || '',
+          description: formData.seo?.description || '',
+          keywords: formData.seo?.keywords || []
+        }
+      };
+      
+      await axios[method](url, dataToSend, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
       setShowModal(false);
       setEditingBlog(null);
+      setImagePreview(null);
       setFormData({
         title: '',
         content: '',
@@ -65,6 +171,7 @@ const BlogsManager = () => {
         tags: [],
         status: 'draft',
         featured: false,
+        featuredImage: '',
         seo: {
           title: '',
           description: '',
@@ -75,6 +182,8 @@ const BlogsManager = () => {
     } catch (error) {
       console.error('Error saving blog:', error);
       alert(error.response?.data?.message || 'Error saving blog');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -82,7 +191,10 @@ const BlogsManager = () => {
     if (!window.confirm('Are you sure you want to delete this blog?')) return;
     
     try {
-      await api.delete(`/website/blogs/${id}`);
+      const token = authService.getToken();
+      await axios.delete(`${import.meta.env.VITE_API_URL}/website/blogs/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       fetchBlogs();
     } catch (error) {
       console.error('Error deleting blog:', error);
@@ -92,6 +204,7 @@ const BlogsManager = () => {
 
   const handleEdit = (blog) => {
     setEditingBlog(blog);
+    setImagePreview(blog.featuredImage || null);
     setFormData({
       title: blog.title,
       content: blog.content,
@@ -100,6 +213,7 @@ const BlogsManager = () => {
       tags: blog.tags || [],
       status: blog.status || 'draft',
       featured: blog.featured || false,
+      featuredImage: blog.featuredImage || '',
       seo: blog.seo || {
         title: '',
         description: '',
@@ -108,13 +222,6 @@ const BlogsManager = () => {
     });
     setShowModal(true);
   };
-
-  const filteredBlogs = blogs.filter(blog => {
-    const matchesSearch = blog.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         blog.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || blog.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
 
   const getStatusBadge = (status) => {
     const colors = {
@@ -127,6 +234,13 @@ const BlogsManager = () => {
 
   const categories = ['Technology', 'Business', 'Development', 'Design', 'Marketing', 'News', 'Events'];
 
+  const filteredBlogs = blogs.filter(blog => {
+    const matchesSearch = blog.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         blog.content.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || blog.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div>
       {/* Header */}
@@ -138,6 +252,7 @@ const BlogsManager = () => {
         <button
           onClick={() => {
             setEditingBlog(null);
+            setImagePreview(null);
             setFormData({
               title: '',
               content: '',
@@ -146,6 +261,7 @@ const BlogsManager = () => {
               tags: [],
               status: 'draft',
               featured: false,
+              featuredImage: '',
               seo: {
                 title: '',
                 description: '',
@@ -208,19 +324,31 @@ const BlogsManager = () => {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <h3 className="text-lg font-semibold text-white">{blog.title}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(blog.status)}`}>
-                      {blog.status}
-                    </span>
-                    {blog.featured && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium border bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-                        <FaStar className="inline mr-1" />
-                        Featured
-                      </span>
+                    {/* Featured Image Preview in List */}
+                    {blog.featuredImage && (
+                      <img 
+                        src={blog.featuredImage} 
+                        alt={blog.title}
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
                     )}
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium border bg-blue-500/20 text-blue-400 border-blue-500/30">
-                      {blog.category}
-                    </span>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">{blog.title}</h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(blog.status)}`}>
+                          {blog.status}
+                        </span>
+                        {blog.featured && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium border bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                            <FaStar className="inline mr-1" />
+                            Featured
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium border bg-blue-500/20 text-blue-400 border-blue-500/30">
+                          {blog.category}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <p className="text-gray-400 text-sm line-clamp-2">{blog.excerpt}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
@@ -234,7 +362,7 @@ const BlogsManager = () => {
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   <button
-                    onClick={() => window.open(`/blog/${blog.slug}`, '_blank')}
+                    onClick={() => window.open(`/blogs/${blog.slug}`, '_blank')}
                     className="p-2 bg-[#00D4FF]/10 text-[#00D4FF] rounded-lg hover:bg-[#00D4FF]/20 transition-all"
                     title="View Blog"
                   >
@@ -261,7 +389,7 @@ const BlogsManager = () => {
         </div>
       )}
 
-      {/* Modal - Same as before but with form fields */}
+      {/* Create/Edit Modal with Image Upload */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
@@ -309,15 +437,103 @@ const BlogsManager = () => {
                   </div>
                 </div>
 
+                {/* ============================================ */}
+                {/* IMAGE UPLOAD SECTION */}
+                {/* ============================================ */}
+                <div className="bg-[#0A0A0F]/50 rounded-xl p-4 border border-dashed border-[#00D4FF]/20">
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Featured Image
+                  </label>
+                  
+                  <div className="flex flex-col items-center gap-4">
+                    {/* Image Preview */}
+                    {imagePreview ? (
+                      <div className="relative w-full max-w-md mx-auto">
+                        <img 
+                          src={imagePreview} 
+                          alt="Blog featured image preview" 
+                          className="w-full h-48 object-cover rounded-lg border-2 border-[#00D4FF]/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                          title="Remove image"
+                        >
+                          <FaTimesCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full max-w-md h-48 bg-[#0A0A0F] border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center text-gray-500">
+                        <FaImage className="w-12 h-12 mb-3 opacity-50" />
+                        <span className="text-sm">No image uploaded</span>
+                        <span className="text-xs text-gray-600">Click "Upload Image" to add one</span>
+                      </div>
+                    )}
+
+                    {/* Upload Button */}
+                    <div className="flex flex-wrap items-center gap-3 w-full max-w-md">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="blog-image-upload"
+                      />
+                      <label
+                        htmlFor="blog-image-upload"
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all cursor-pointer ${
+                          uploadingImage
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-[#00D4FF]/10 text-[#00D4FF] hover:bg-[#00D4FF]/20 border border-[#00D4FF]/20'
+                        }`}
+                      >
+                        {uploadingImage ? (
+                          <>
+                            <FaSpinner className="w-4 h-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <FaCloudUploadAlt className="w-4 h-4" />
+                            {imagePreview ? 'Change Image' : 'Upload Image'}
+                          </>
+                        )}
+                      </label>
+                      
+                      {/* Image URL Input (Fallback) */}
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={formData.featuredImage}
+                          onChange={(e) => {
+                            setFormData({ ...formData, featuredImage: e.target.value });
+                            setImagePreview(e.target.value);
+                          }}
+                          placeholder="Or paste image URL"
+                          className="w-full px-3 py-2.5 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] text-sm"
+                        />
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-gray-500 text-center">
+                      Supported formats: JPEG, PNG, GIF, WEBP, SVG (Max 5MB)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Content */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Content *</label>
-                  <textarea
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    required
-                    rows="10"
-                    className="w-full px-4 py-2 bg-[#0A0A0F] text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D4FF] font-mono"
-                  />
+                  <label className="block text-sm font-medium text-gray-400 mb-2">Content *</label>
+                  <div className="bg-[#0A0A0F] rounded-lg border border-gray-700 overflow-hidden">
+                    <RichTextEditor
+                      value={formData.content}
+                      onChange={(content) => setFormData({ ...formData, content })}
+                      placeholder="Write your blog post content here..."
+                      height="350px"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -419,10 +635,20 @@ const BlogsManager = () => {
                 <div className="flex space-x-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-2 bg-gradient-to-r from-[#00D4FF] to-[#7C3AED] text-white rounded-lg hover:shadow-lg hover:shadow-[#00D4FF]/20 transition-all flex items-center justify-center gap-2"
+                    disabled={uploadingImage}
+                    className="flex-1 px-6 py-2 bg-gradient-to-r from-[#00D4FF] to-[#7C3AED] text-white rounded-lg hover:shadow-lg hover:shadow-[#00D4FF]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    <FaSave className="w-4 h-4" />
-                    {editingBlog ? 'Update Blog' : 'Create Blog'}
+                    {uploadingImage ? (
+                      <>
+                        <FaSpinner className="w-4 h-4 animate-spin" />
+                        Uploading Image...
+                      </>
+                    ) : (
+                      <>
+                        <FaSave className="w-4 h-4" />
+                        {editingBlog ? 'Update Blog' : 'Create Blog'}
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
