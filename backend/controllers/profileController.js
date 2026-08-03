@@ -195,9 +195,23 @@ const changePassword = async (req, res) => {
     user.password = newPassword;
     await user.save();
 
+    const jwt = require('jsonwebtoken');
+    const newToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.status(200).json({
       success: true,
       message: 'Password changed successfully',
+      token: newToken,
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (error) {
     console.error('Change password error:', error);

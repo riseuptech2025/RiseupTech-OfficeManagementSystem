@@ -362,17 +362,34 @@ const ProfilePage = () => {
     setSaving(true);
 
     try {
-      await profileService.changePassword({
+      const response = await profileService.changePassword({
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      setSuccess('Password changed successfully!');
+
+      if (response?.data?.token) {
+        localStorage.setItem('token', response.data.token);
+
+        const storedUser = authService.getUser();
+        if (storedUser) {
+          const updatedUser = {
+            ...storedUser,
+            ...response.data.data,
+          };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          setUser(updatedUser);
+        }
+      }
+
+      setSuccess('Password changed successfully! You are now logged in with your new password.');
       setChangingPassword(false);
       setPasswordData({
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
+
+      setTimeout(() => setSuccess(''), 5000);
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to change password');
     } finally {

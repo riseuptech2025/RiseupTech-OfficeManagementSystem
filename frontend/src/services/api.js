@@ -261,7 +261,7 @@ export const profileService = {
       console.log('Changing password');
       const response = await api.put('/profile/change-password', passwordData);
       console.log('Password changed successfully');
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Change password error:', error);
       throw error;
