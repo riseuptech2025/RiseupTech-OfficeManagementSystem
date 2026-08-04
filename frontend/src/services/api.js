@@ -680,10 +680,57 @@ export const websiteService = {
   getSettings: async () => {
     try {
       const response = await api.get('/website/settings');
-      return response.data;
+      const defaults = {
+        companyPhone: '9827399860',
+        companyEmail: 'mail@riseuptech.com.np',
+        companyAddress: 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal',
+        facebook: '',
+        twitter: '',
+        linkedin: '',
+        github: '',
+        instagram: '',
+        youtube: '',
+        siteName: 'Riseup-Tech Software Company',
+        siteTagline: 'Building Digital Excellence',
+        metaTitle: 'Riseup-Tech - Software Development Company',
+        metaDescription: 'Riseup-Tech Software Company delivers innovative web solutions.',
+        metaKeywords: 'software development, web development, mobile apps, Nepal',
+        primaryColor: '#00D4FF',
+        secondaryColor: '#7C3AED',
+        darkMode: true
+      };
+
+      return {
+        success: true,
+        data: {
+          ...defaults,
+          ...(response.data?.data || {})
+        }
+      };
     } catch (error) {
       console.error('Get settings error:', error);
-      throw error;
+      return {
+        success: true,
+        data: {
+          companyPhone: '9827399860',
+          companyEmail: 'mail@riseuptech.com.np',
+          companyAddress: 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal',
+          facebook: '',
+          twitter: '',
+          linkedin: '',
+          github: '',
+          instagram: '',
+          youtube: '',
+          siteName: 'Riseup-Tech Software Company',
+          siteTagline: 'Building Digital Excellence',
+          metaTitle: 'Riseup-Tech - Software Development Company',
+          metaDescription: 'Riseup-Tech Software Company delivers innovative web solutions.',
+          metaKeywords: 'software development, web development, mobile apps, Nepal',
+          primaryColor: '#00D4FF',
+          secondaryColor: '#7C3AED',
+          darkMode: true
+        }
+      };
     }
   },
 

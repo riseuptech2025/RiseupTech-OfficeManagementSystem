@@ -14,10 +14,19 @@ import {
   FaGlobe
 } from 'react-icons/fa';
 import logo from '../../assets/logo.png';
-import { websiteService } from '../../services/api';
 
 const Footer = () => {
-  const [settings, setSettings] = useState({});
+  const [settings, setSettings] = useState({
+    companyPhone: '9827399860',
+    companyEmail: 'mail@riseuptech.com.np',
+    companyAddress: 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal',
+    facebook: '',
+    twitter: '',
+    linkedin: '',
+    github: '',
+    instagram: '',
+    youtube: '',
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -27,70 +36,99 @@ const Footer = () => {
 
   const fetchSettings = async () => {
     try {
-      setLoading(true);
-      setError(false);
+      console.log('📡 Fetching settings for footer...');
       
-      console.log('🔄 Fetching footer settings...');
+      // Use the API URL from environment or fallback to relative path
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
       
-      // ============================================
-      // Use the websiteService to fetch settings
-      // ============================================
-      const response = await websiteService.getSettings();
+      const response = await fetch(`${apiUrl}/website/settings`);
       
-      console.log('✅ Settings response:', response);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
-      if (response.success && response.data) {
-        setSettings(response.data);
-        console.log('📊 Settings loaded:', response.data);
+      const data = await response.json();
+      console.log('✅ Settings fetched:', data);
+      
+      if (data.success && data.data) {
+        // Merge with defaults
+        setSettings(prev => ({
+          ...prev,
+          ...data.data
+        }));
       } else {
         console.warn('⚠️ No settings data received, using defaults');
-        setError(true);
       }
     } catch (error) {
       console.error('❌ Error fetching settings:', error);
       setError(true);
-      // Use default settings on error
-      setSettings({
-        companyPhone: '9827399860',
-        companyEmail: 'mail@riseuptech.com.np',
-        companyAddress: 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal',
-        facebook: '',
-        twitter: '',
-        linkedin: '',
-        github: '',
-        instagram: '',
-        youtube: '',
-      });
+      // Keep using default settings
     } finally {
       setLoading(false);
     }
   };
 
-  // Define social links configuration with their keys from settings
+  // ============================================
+  // Social Links Configuration
+  // ============================================
   const socialLinksConfig = [
-    { icon: FaFacebook, key: 'facebook', label: 'Facebook' },
-    { icon: FaTwitter, key: 'twitter', label: 'Twitter' },
-    { icon: FaLinkedin, key: 'linkedin', label: 'LinkedIn' },
-    { icon: FaGithub, key: 'github', label: 'GitHub' },
-    { icon: FaInstagram, key: 'instagram', label: 'Instagram' },
-    { icon: FaYoutube, key: 'youtube', label: 'YouTube' },
+    { 
+      key: 'facebook', 
+      icon: FaFacebook, 
+      label: 'Facebook',
+      color: '#1877F2',
+      bgColor: 'hover:bg-[#1877F2]'
+    },
+    { 
+      key: 'twitter', 
+      icon: FaTwitter, 
+      label: 'Twitter',
+      color: '#1DA1F2',
+      bgColor: 'hover:bg-[#1DA1F2]'
+    },
+    { 
+      key: 'linkedin', 
+      icon: FaLinkedin, 
+      label: 'LinkedIn',
+      color: '#0A66C2',
+      bgColor: 'hover:bg-[#0A66C2]'
+    },
+    { 
+      key: 'github', 
+      icon: FaGithub, 
+      label: 'GitHub',
+      color: '#ffffff',
+      bgColor: 'hover:bg-[#ffffff]'
+    },
+    { 
+      key: 'instagram', 
+      icon: FaInstagram, 
+      label: 'Instagram',
+      color: '#E4405F',
+      bgColor: 'hover:bg-[#E4405F]'
+    },
+    { 
+      key: 'youtube', 
+      icon: FaYoutube, 
+      label: 'YouTube',
+      color: '#FF0000',
+      bgColor: 'hover:bg-[#FF0000]'
+    },
   ];
 
-  // Filter only social links that have a URL in settings
+  // Filter only social links that have a URL
   const availableSocialLinks = socialLinksConfig
     .filter(({ key }) => {
-      const value = settings[key];
-      return value && value !== '' && value !== '#';
+      const url = settings[key];
+      return url && url.trim() !== '' && url !== '#';
     })
-    .map(({ icon, key, label }) => ({
+    .map(({ key, icon, label, color, bgColor }) => ({
       icon,
+      label,
       url: settings[key],
-      label
+      color,
+      bgColor
     }));
-
-  // Debug log to see what's available
-  console.log('🔗 Available social links:', availableSocialLinks);
-  console.log('📞 Phone:', settings.companyPhone);
 
   const quickLinks = [
     { label: 'Home', path: '/' },
@@ -107,14 +145,23 @@ const Footer = () => {
     { label: 'Cookies Policy', path: '/cookies' },
   ];
 
-  // Get contact info with fallbacks
-  const getPhone = () => settings.companyPhone || '9827399860';
-  const getEmail = () => settings.companyEmail || 'mail@riseuptech.com.np';
-  const getAddress = () => settings.companyAddress || 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal';
+  // Show loading state
+  if (loading) {
+    return (
+      <footer className="bg-[#111118] border-t border-[#00D4FF]/10">
+        <div className="container mx-auto px-4 py-12">
+          <div className="flex justify-center items-center">
+            <div className="w-8 h-8 border-4 border-[#00D4FF] border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-3 text-gray-400">Loading...</span>
+          </div>
+        </div>
+      </footer>
+    );
+  }
 
   return (
     <footer className="bg-[#111118] border-t border-[#00D4FF]/10">
-      <div className="container mx-auto">
+      <div className="container mx-auto px-4">
         {/* Main Footer */}
         <div className="py-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Company Info */}
@@ -127,8 +174,9 @@ const Footer = () => {
               Building Digital Excellence through innovative software solutions, 
               web development, and mobile applications.
             </p>
-            {/* Show social icons only if there are available links */}
-            {availableSocialLinks.length > 0 ? (
+            
+            {/* Social Icons - Only show if there are available links */}
+            {availableSocialLinks.length > 0 && (
               <div className="flex gap-3 mt-4">
                 {availableSocialLinks.map((social, index) => {
                   const Icon = social.icon;
@@ -138,38 +186,14 @@ const Footer = () => {
                       href={social.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all group"
+                      className={`w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 transition-all duration-300 ${social.bgColor} hover:text-white hover:scale-110 hover:shadow-lg`}
                       aria-label={social.label}
+                      title={social.label}
                     >
-                      <Icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                      <Icon className="w-5 h-5" />
                     </a>
                   );
                 })}
-              </div>
-            ) : (
-              <div className="flex gap-3 mt-4">
-                {/* Default social links if none in settings */}
-                <a
-                  href="#"
-                  className="w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all"
-                  aria-label="Facebook"
-                >
-                  <FaFacebook className="w-5 h-5" />
-                </a>
-                <a
-                  href="#"
-                  className="w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all"
-                  aria-label="Twitter"
-                >
-                  <FaTwitter className="w-5 h-5" />
-                </a>
-                <a
-                  href="#"
-                  className="w-10 h-10 bg-[#0A0A0F] rounded-lg flex items-center justify-center text-gray-400 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 transition-all"
-                  aria-label="LinkedIn"
-                >
-                  <FaLinkedin className="w-5 h-5" />
-                </a>
               </div>
             )}
           </div>
@@ -214,22 +238,28 @@ const Footer = () => {
             <ul className="space-y-3">
               <li className="flex items-start gap-3 text-gray-400 text-sm">
                 <FaMapMarkerAlt className="text-[#00D4FF] mt-1 flex-shrink-0" />
-                <span>{getAddress()}</span>
+                <span>{settings.companyAddress || 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal'}</span>
               </li>
               <li className="flex items-center gap-3 text-gray-400 text-sm">
                 <FaPhone className="text-[#00D4FF] flex-shrink-0" />
-                <a href={`tel:${getPhone()}`} className="hover:text-[#00D4FF] transition-colors">
-                  {getPhone()}
+                <a href={`tel:${settings.companyPhone || '9827399860'}`} className="hover:text-[#00D4FF] transition-colors">
+                  {settings.companyPhone || '9827399860'}
                 </a>
               </li>
               <li className="flex items-center gap-3 text-gray-400 text-sm">
                 <FaEnvelope className="text-[#00D4FF] flex-shrink-0" />
-                <a href={`mailto:${getEmail()}`} className="hover:text-[#00D4FF] transition-colors">
-                  {getEmail()}
+                <a href={`mailto:${settings.companyEmail || 'mail@riseuptech.com.np'}`} className="hover:text-[#00D4FF] transition-colors">
+                  {settings.companyEmail || 'mail@riseuptech.com.np'}
                 </a>
               </li>
             </ul>
           </div>
+        </div>
+        
+        {/* Bottom Bar */}
+        <div className="border-t border-[#00D4FF]/10 py-6 flex flex-col md:flex-row justify-between items-center text-sm text-gray-500">
+          <p>© {new Date().getFullYear()} Riseup-Tech Software Company. All rights reserved.</p>
+          <p className="mt-2 md:mt-0">Built with ❤️ in Nepal</p>
         </div>
       </div>
     </footer>
