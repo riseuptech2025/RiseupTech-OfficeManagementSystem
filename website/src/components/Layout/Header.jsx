@@ -27,11 +27,7 @@ const Header = () => {
     { label: 'About', path: '/about' },
     { 
       label: 'Services', path: '/services',
-      // dropdown: [
-      //   { label: 'Web Development', path: '/services/web-development' },
-      //   { label: 'App Development', path: '/services/app-development' },
-      //   { label: 'Cloud Solutions', path: '/services/cloud-solutions' },
-      // ]
+      
     },
     { label: 'Blogs', path: '/blogs' },
     { label: 'Careers', path: '/careers' },
@@ -51,17 +47,18 @@ const Header = () => {
     }`}>
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-14 md:h-16">
-          {/* Logo */}
+          {/* Logo - Updated for mobile */}
           <Link to="/" className="flex items-center gap-2 group relative">
             <div className="relative">
               <img src={logo} alt="Riseup-Tech" className="h-10 w-auto md:h-12 transition-transform duration-300 group-hover:scale-105" />
               <div className="absolute -inset-1 bg-gradient-to-r from-[#00D4FF] to-[#7C3AED] rounded-full blur opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
             </div>
-            <div className="hidden sm:block">
-              <span className="text-white font-bold text-lg md:text-xl group-hover:text-[#00D4FF] transition-colors duration-300">
+            {/* Always show platform name - mobile and desktop */}
+            <div className="flex flex-col">
+              <span className="text-white font-bold text-base sm:text-lg md:text-xl group-hover:text-[#00D4FF] transition-colors duration-300">
                 Riseup-Tech
               </span>
-              <span className="block text-[8px] md:text-[10px] text-gray-400 tracking-wider uppercase">
+              <span className="text-[8px] sm:text-[10px] text-gray-400 tracking-wider uppercase whitespace-nowrap">
                 Software Company
               </span>
             </div>
@@ -229,8 +226,6 @@ const Header = () => {
 
           {/* Buttons - Matching page theme */}
           <div className="hidden md:flex items-center gap-3">
-            
-            
             {/* Primary Button - Start project with Water Effect */}
             <Link
               to="/contact"
@@ -338,7 +333,7 @@ const Header = () => {
                 
                 {/* Mobile buttons */}
                 <div className="flex flex-col gap-2 mt-3 px-4">
-                  <Link
+                  {/* <Link
                     to="/about"
                     onClick={() => setIsOpen(false)}
                     className="group relative px-4 py-3 rounded-lg text-center font-medium transition-all duration-300 overflow-hidden border border-gray-600"
@@ -349,7 +344,7 @@ const Header = () => {
                     <span className="relative z-10 text-gray-300 group-hover:text-white">
                       Secondary
                     </span>
-                  </Link>
+                  </Link> */}
                   <Link
                     to="/contact"
                     onClick={() => setIsOpen(false)}
@@ -375,32 +370,32 @@ const Header = () => {
         </AnimatePresence>
       </div>
 
-     {/* CSS Animations - FIXED */}
-<style dangerouslySetInnerHTML={{
-  __html: `
-    @keyframes wave {
-      0% { transform: translateX(-100%) scaleY(1); }
-      50% { transform: translateX(0%) scaleY(1.2); }
-      100% { transform: translateX(100%) scaleY(1); }
-    }
-    
-    @keyframes wave-delayed {
-      0% { transform: translateX(-100%) scaleY(1); }
-      50% { transform: translateX(0%) scaleY(1.3); }
-      100% { transform: translateX(100%) scaleY(1); }
-    }
-    
-    @keyframes bubble {
-      0% { transform: translateY(0) scale(0); opacity: 0; }
-      20% { opacity: 1; }
-      100% { transform: translateY(-40px) scale(1); opacity: 0; }
-    }
-    
-    .animate-wave { animation: wave 3s ease-in-out infinite; }
-    .animate-wave-delayed { animation: wave-delayed 3s ease-in-out infinite 1.5s; }
-    .animate-bubble { animation: bubble 2s ease-in-out infinite; }
-  `
-}} />
+      {/* CSS Animations - FIXED */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes wave {
+            0% { transform: translateX(-100%) scaleY(1); }
+            50% { transform: translateX(0%) scaleY(1.2); }
+            100% { transform: translateX(100%) scaleY(1); }
+          }
+          
+          @keyframes wave-delayed {
+            0% { transform: translateX(-100%) scaleY(1); }
+            50% { transform: translateX(0%) scaleY(1.3); }
+            100% { transform: translateX(100%) scaleY(1); }
+          }
+          
+          @keyframes bubble {
+            0% { transform: translateY(0) scale(0); opacity: 0; }
+            20% { opacity: 1; }
+            100% { transform: translateY(-40px) scale(1); opacity: 0; }
+          }
+          
+          .animate-wave { animation: wave 3s ease-in-out infinite; }
+          .animate-wave-delayed { animation: wave-delayed 3s ease-in-out infinite 1.5s; }
+          .animate-bubble { animation: bubble 2s ease-in-out infinite; }
+        `
+      }} />
     </header>
   );
 };
