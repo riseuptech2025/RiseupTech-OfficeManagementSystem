@@ -905,33 +905,15 @@ const getSettings = async (req, res) => {
     const { group } = req.query;
     const query = {};
     if (group) query.group = group;
-
+    
     const settings = await Setting.find(query);
-
-    const settingsObj = {
-      companyPhone: '9827399860',
-      companyEmail: 'mail@riseuptech.com.np',
-      companyAddress: 'Tilathi-Koiladi Rural Municipality-2, Launiya, Saptari, Nepal',
-      facebook: '',
-      twitter: '',
-      linkedin: '',
-      github: '',
-      instagram: '',
-      youtube: '',
-      siteName: 'Riseup-Tech Software Company',
-      siteTagline: 'Building Digital Excellence',
-      metaTitle: 'Riseup-Tech - Software Development Company',
-      metaDescription: 'Riseup-Tech Software Company delivers innovative web solutions.',
-      metaKeywords: 'software development, web development, mobile apps, Nepal',
-      primaryColor: '#00D4FF',
-      secondaryColor: '#7C3AED',
-      darkMode: true
-    };
-
+    
+    // Convert to object
+    const settingsObj = {};
     settings.forEach(setting => {
       settingsObj[setting.key] = setting.value;
     });
-
+    
     res.status(200).json({
       success: true,
       data: settingsObj
