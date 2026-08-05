@@ -53,7 +53,7 @@ const Home = () => {
     <>
       <Helmet>
         <title>{settings.siteName || 'Riseup-Tech'} - {settings.siteTagline || 'Building Digital Excellence'}</title>
-        <meta name="description" content={settings.metaDescription || 'Riseup-Tech Software Company delivers innovative web solutions, mobile apps, and software development services.'} />
+        <meta name="description" content="Riseup-Tech is a software company in Nepal specializing in website development, school management systems, mobile apps, and digital solutions for schools, colleges, hospitals, and businesses across Nepal." />
         <meta name="keywords" content={settings.metaKeywords || 'software development, web development, mobile apps, Nepal'} />
       </Helmet>
 
