@@ -257,9 +257,8 @@ const Footer = () => {
         </div>
         
         {/* Bottom Bar */}
-        <div className="border-t border-[#00D4FF]/10 py-6 flex flex-col md:flex-row justify-between items-center text-sm text-gray-500">
-          <p>© {new Date().getFullYear()} Riseup-Tech Software Company. All rights reserved.</p>
-          <p className="mt-2 md:mt-0">Built with ❤️ in Nepal</p>
+        <div className="border-t border-[#00D4FF]/10 py-6 text-center text-sm text-gray-500">
+         <p>© {new Date().getFullYear()} <strong>Riseup-Tech Software Company</strong>. All rights reserved.</p>
         </div>
       </div>
     </footer>
