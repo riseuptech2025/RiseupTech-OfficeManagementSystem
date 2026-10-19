@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout/Layout';
 import LoadingSpinner from './components/Common/LoadingSpinner';
+import WhatsAppButton from './components/Common/WhatsAppButton';
 
 const Home = lazy(() => import('./pages/Home'));
 const About = lazy(() => import('./pages/About'));
@@ -37,6 +38,7 @@ function App() {
           </Routes>
         </Suspense>
       </Layout>
+      <WhatsAppButton />
     </Router>
   );
 }
